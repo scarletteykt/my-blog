@@ -1,8 +1,10 @@
 package post
 
+import "github.com/scraletteykt/my-blog/internal/repository"
+
 const (
-	PostStatusUnspecified = 0
-	PostStatusDraft       = 10
-	PostStatusPublished   = 20
-	PostStatusDeleted     = 30
+	PostStatusUnspecified = repository.PostStatusUnspecified
+	PostStatusDraft       = repository.PostStatusDraft
+	PostStatusPublished   = repository.PostStatusPublished
+	PostStatusDeleted     = repository.PostStatusDeleted
 )

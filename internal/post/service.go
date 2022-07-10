@@ -64,6 +64,17 @@ func (p *Posts) GetPostsByTag(ctx context.Context, tagID, limit, offset int) ([]
 	})
 }
 
+func (p *Posts) GetPostsByUser(ctx context.Context, userID, limit, offset int) ([]*Post, error) {
+	return p.getPosts(ctx, repository.PostCriteria{
+		ID:     0,
+		UserID: userID,
+		Status: 0,
+		TagID:  0,
+		Limit:  limit,
+		Offset: offset,
+	})
+}
+
 func (p *Posts) CreatePost(ctx context.Context, createPost CreatePost) error {
 	postID, err := p.postsRepo.CreatePost(ctx, repository.CreatePost{
 		UserID:      createPost.UserID,
@@ -111,9 +122,23 @@ func (p *Posts) UpdatePost(ctx context.Context, updatePost UpdatePost) error {
 	if err != nil {
 		return err
 	}
-	for _, tagID := range updatePost.TagIDs {
-		
+	err = p.postsTagsRepo.UpdatePostTags(ctx, updatePost.TagIDs, updatePost.ID)
+	if err != nil {
+		return err
 	}
+	return nil
+}
+
+func (p *Posts) DeletePost(ctx context.Context, deletePost DeletePost) error {
+	err := p.postsRepo.DeletePost(ctx, repository.DeletePost{
+		ID:        deletePost.ID,
+		Status:    PostStatusDeleted,
+		DeletedAt: time.Now(),
+	})
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (p *Posts) getPosts(ctx context.Context, criteria repository.PostCriteria) ([]*Post, error) {
@@ -128,6 +153,16 @@ func (p *Posts) getPosts(ctx context.Context, criteria repository.PostCriteria) 
 	posts := make([]*Post, 0)
 
 	for _, dbPost := range dbPosts {
+		var (
+			publishedAt time.Time
+			deletedAt   time.Time
+		)
+		if dbPost.PublishedAt.Valid {
+			publishedAt = dbPost.PublishedAt.Time
+		}
+		if dbPost.DeletedAt.Valid {
+			deletedAt = dbPost.DeletedAt.Time
+		}
 		tags := make([]*Tag, 0)
 		pst := &Post{
 			ID:          dbPost.ID,
@@ -139,10 +174,10 @@ func (p *Posts) getPosts(ctx context.Context, criteria repository.PostCriteria) 
 			ImageURL:    dbPost.ImageURL,
 			Content:     dbPost.Content,
 			Slug:        dbPost.Slug,
-			PublishedAt: dbPost.PublishedAt,
+			PublishedAt: publishedAt,
 			CreatedAt:   dbPost.CreatedAt,
 			UpdatedAt:   dbPost.UpdatedAt,
-			DeletedAt:   dbPost.DeletedAt,
+			DeletedAt:   deletedAt,
 			Tags:        tags,
 		}
 		for _, dbTag := range dbPost.Tags {

@@ -88,6 +88,9 @@ func (r *Repo) GetPostsByCriteria(ctx context.Context, criteria PostCriteria) ([
 	if criteria.UserID > 0 {
 		where += "AND p.user_id = :user_id "
 	}
+	if criteria.Status != PostStatusDeleted {
+		where += fmt.Sprintf("AND p.status <> %d ", PostStatusDeleted)
+	}
 	if criteria.Status > 0 {
 		where += "AND p.status = :status "
 	}

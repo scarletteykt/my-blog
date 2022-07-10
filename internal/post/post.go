@@ -47,3 +47,7 @@ type UpdatePost struct {
 	Slug        string
 	TagIDs      []int
 }
+
+type DeletePost struct {
+	ID int
+}
