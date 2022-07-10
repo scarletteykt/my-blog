@@ -5,6 +5,7 @@ import (
 	"errors"
 	"github.com/go-chi/chi/v5"
 	"github.com/scraletteykt/my-blog/internal/post"
+	"github.com/scraletteykt/my-blog/internal/tag"
 	"github.com/scraletteykt/my-blog/pkg/auth"
 	"github.com/scraletteykt/my-blog/pkg/logger"
 	"github.com/scraletteykt/my-blog/pkg/server"
@@ -24,6 +25,7 @@ type createPost struct {
 	ImageURL    string `json:"image_url"`
 	Content     string `json:"content"`
 	Slug        string `json:"slug"`
+	TagIDs      []int  `json:"tags"`
 }
 
 type updatePost struct {
@@ -35,6 +37,7 @@ type updatePost struct {
 	ImageURL    *string `json:"image_url"`
 	Content     *string `json:"content"`
 	Slug        *string `json:"slug"`
+	TagIDs      *[]int  `json:"tags"`
 }
 
 func (a *API) GetPostByID(w http.ResponseWriter, r *http.Request) {
@@ -81,13 +84,40 @@ func (a *API) GetPosts(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) CreatePost(w http.ResponseWriter, r *http.Request) {
 	var cpost createPost
-
 	err := json.NewDecoder(r.Body).Decode(&cpost)
 	if err != nil {
 		logger.Warnf("post create: decoder error: %s", err.Error())
 		server.ErrorJSON(w, r, http.StatusBadRequest, err)
 		return
 	}
+	u := auth.FromContext(r.Context())
+	if u.ID < 0 {
+		logger.Warnf("post create: unauthorized access error: %s", err.Error())
+		server.ErrorJSON(w, r, http.StatusUnauthorized, err)
+		return
+	}
+	err = json.NewDecoder(r.Body).Decode(&cpost)
+	if err != nil {
+		logger.Warnf("post create: decoder error: %s", err.Error())
+		server.ErrorJSON(w, r, http.StatusBadRequest, err)
+		return
+	}
+	err = a.posts.CreatePost(r.Context(), post.CreatePost{
+		UserID:      u.ID,
+		ReadingTime: cpost.ReadingTime,
+		Title:       cpost.Title,
+		Subtitle:    cpost.Subtitle,
+		ImageURL:    cpost.ImageURL,
+		Content:     cpost.Content,
+		Slug:        cpost.Slug,
+		TagIDs:      cpost.TagIDs,
+	})
+	if err != nil {
+		logger.Warnf("post create: error: %s", err.Error())
+		server.ErrorJSON(w, r, http.StatusInternalServerError, err)
+		return
+	}
+	server.ResponseJSON(w, r, "ok")
 }
 
 func (a *API) UpdatePost(w http.ResponseWriter, r *http.Request) {
@@ -151,6 +181,11 @@ func (a *API) UpdatePost(w http.ResponseWriter, r *http.Request) {
 	} else {
 		updPost.Slug = originalPost.Slug
 	}
+	if input.TagIDs != nil {
+		updPost.TagIDs = *input.TagIDs
+	} else {
+		updPost.TagIDs = getTagIDs(originalPost.Tags)
+	}
 	if input.Publish != nil {
 		if *input.Publish {
 			updPost.Status = post.PostStatusPublished
@@ -163,6 +198,8 @@ func (a *API) UpdatePost(w http.ResponseWriter, r *http.Request) {
 
 	err = a.posts.UpdatePost(r.Context(), updPost)
 	if err != nil {
+		logger.Warnf("post update: error: %s", err.Error())
+		server.ErrorJSON(w, r, http.StatusInternalServerError, err)
 		return
 	}
 	server.ResponseJSON(w, r, "ok")
@@ -192,4 +229,12 @@ func (a *API) DeletePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	server.ResponseJSON(w, r, "ok")
+}
+
+func getTagIDs(tags []*tag.Tag) []int {
+	out := make([]int, 0)
+	for _, t := range tags {
+		out = append(out, t.ID)
+	}
+	return out
 }
