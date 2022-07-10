@@ -15,7 +15,7 @@ const (
 
 type Tags interface {
 	GetTagById(ctx context.Context, id int) (*Tag, error)
-	GetAllTags(ctx context.Context) ([]*Tag, error)
+	GetTags(ctx context.Context) ([]*Tag, error)
 	CreateTag(ctx context.Context, createTag CreateTag) (int, error)
 	UpdateTag(ctx context.Context, updateTag UpdateTag) error
 	DeleteTag(ctx context.Context, deleteTag DeleteTag) error
@@ -57,9 +57,12 @@ func (r *Repo) GetTagById(ctx context.Context, id int) (*Tag, error) {
 	return out[0], err
 }
 
-func (r *Repo) GetAllTags(ctx context.Context) ([]*Tag, error) {
+func (r *Repo) GetTags(ctx context.Context) ([]*Tag, error) {
 	query := fmt.Sprintf("SELECT %s FROM %s t", tagSelectQuery, tagsTable)
 	rows, err := r.db.QueryContext(ctx, query)
+	if err == sql.ErrNoRows {
+		return nil, storage.ErrNotFound
+	}
 	if err != nil {
 		return nil, err
 	}

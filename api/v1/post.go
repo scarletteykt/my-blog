@@ -76,6 +76,7 @@ func (a *API) GetPosts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
+		logger.Warnf("post get: error: %s", err.Error())
 		server.ErrorJSON(w, r, http.StatusInternalServerError, err)
 		return
 	}
@@ -215,6 +216,11 @@ func (a *API) DeletePost(w http.ResponseWriter, r *http.Request) {
 	originalPost, err := a.posts.GetPostByID(r.Context(), int(id))
 	if err == post.ErrNotFound {
 		server.ErrorJSON(w, r, http.StatusNotFound, err)
+		return
+	}
+	if err != nil {
+		logger.Warnf("post delete: error: %s", err.Error())
+		server.ErrorJSON(w, r, http.StatusInternalServerError, err)
 		return
 	}
 	if u.ID != originalPost.UserID {

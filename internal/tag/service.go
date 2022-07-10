@@ -2,8 +2,12 @@ package tag
 
 import (
 	"context"
+	"github.com/pkg/errors"
 	"github.com/scraletteykt/my-blog/internal/repository"
+	"github.com/scraletteykt/my-blog/pkg/storage"
 )
+
+var ErrNotFound = errors.New("not found rows in result set")
 
 type Tags struct {
 	tagsRepo repository.Tags
@@ -15,9 +19,12 @@ func New(repo repository.Tags) *Tags {
 	}
 }
 
-func (t *Tags) GetAllTags(ctx context.Context) ([]*Tag, error) {
-	dbTags, err := t.tagsRepo.GetAllTags(ctx)
+func (t *Tags) GetTags(ctx context.Context) ([]*Tag, error) {
+	dbTags, err := t.tagsRepo.GetTags(ctx)
 	out := make([]*Tag, 0)
+	if err == storage.ErrNotFound {
+		return nil, ErrNotFound
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -34,6 +41,9 @@ func (t *Tags) GetAllTags(ctx context.Context) ([]*Tag, error) {
 
 func (t *Tags) GetTagByID(ctx context.Context, tagID int) (*Tag, error) {
 	dbTag, err := t.tagsRepo.GetTagById(ctx, tagID)
+	if err == storage.ErrNotFound {
+		return nil, ErrNotFound
+	}
 	if err != nil {
 		return nil, err
 	}
