@@ -5,17 +5,23 @@ import (
 	"github.com/go-chi/cors"
 	mw "github.com/scraletteykt/my-blog/internal/middleware"
 	"github.com/scraletteykt/my-blog/internal/middleware/auth"
+	"github.com/scraletteykt/my-blog/internal/post"
+	"github.com/scraletteykt/my-blog/internal/tag"
 	"github.com/scraletteykt/my-blog/internal/user"
 	"net/http"
 )
 
 type API struct {
-	users *user.Service
+	users *user.Users
+	posts *post.Posts
+	tags  *tag.Tags
 }
 
-func New(users *user.Service) *API {
+func New(users *user.Users, posts *post.Posts, tags *tag.Tags) *API {
 	return &API{
 		users: users,
+		posts: posts,
+		tags:  tags,
 	}
 }
 
@@ -37,32 +43,29 @@ func (a *API) Router() chi.Router {
 			AllowCredentials: true,
 		}),
 		mw.WithAuthOptions(auth.Options{
-			Secret:   "deadbeef",
-			Services: h.services,
+			Secret: "deadbeef",
+			Users:  a.users,
 		}),
 	)...)
 
 	r.Route("/api", func(r chi.Router) {
 		r.Route("/auth", func(r chi.Router) {
-			r.Post("/sign-up", h.SignUp) // POST /api/auth/sign-up
-			r.Post("/sign-in", h.signIn) // POST /api/auth/sign-in
+			r.Post("/sign-up", a.SignUp)
+			r.Post("/sign-in", a.SignIn)
 		})
 		r.Route("/posts", func(r chi.Router) {
-			r.Get("/", listPosts)   // GET /api/posts
-			r.Post("/", createPost) // POST /api/posts
+			r.Get("/", a.GetPosts)
+			r.Post("/", a.CreatePost)
 			r.Route("/{postID}", func(r chi.Router) {
-				r.Get("/", getPost)       // GET /api/posts/123
-				r.Put("/", updatePost)    // PUT /api/posts/123
-				r.Delete("/", deletePost) // DELETE /api/posts/123
+				r.Get("/", a.GetPostByID)
+				r.Put("/", a.UpdatePost)
+				r.Delete("/", a.DeletePost)
 			})
 		})
-		r.Route("/tag", func(r chi.Router) {
-			r.Post("/", createTag) // POST /api/tag
-			r.Route("/{postSlug:[a-z-]+}}", func(r chi.Router) {
-				r.Get("/", getTag)       // GET /api/tag/development
-				r.Put("/", updateTag)    // PUT /api/tag/development
-				r.Delete("/", deleteTag) // DELETE /api/tag/development
-			})
+		r.Route("/tags", func(r chi.Router) {
+			r.Post("/", a.CreateTag)
+			r.Put("/{tagID}", a.UpdateTag)
+			r.Delete("/{tagID}", a.DeleteTag)
 		})
 	})
 

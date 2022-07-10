@@ -11,18 +11,18 @@ var (
 	ErrUserAlreadyExists = errors.New("user with given username already exists")
 )
 
-type Service struct {
+type Users struct {
 	repo *repository.Repo
 }
 
-func New(r *repository.Repo) *Service {
-	s := &Service{
+func New(r *repository.Repo) *Users {
+	s := &Users{
 		repo: r,
 	}
 	return s
 }
 
-func (s *Service) GetUser(username string) (*User, error) {
+func (s *Users) GetUser(username string) (*User, error) {
 	userDB, err := s.repo.GetUser(username)
 	if err == storage.ErrNotFound {
 		return nil, ErrNotFound
@@ -40,7 +40,7 @@ func (s *Service) GetUser(username string) (*User, error) {
 	return u, nil
 }
 
-func (s *Service) CreateUser(createUser CreateUser) (*User, error) {
+func (s *Users) CreateUser(createUser CreateUser) (*User, error) {
 	_, err := s.repo.GetUser(createUser.Username)
 	if err == storage.ErrNotFound {
 		id, err := s.repo.CreateUser(repository.CreateUser{

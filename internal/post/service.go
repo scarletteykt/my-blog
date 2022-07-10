@@ -4,6 +4,8 @@ import (
 	"context"
 	"github.com/pkg/errors"
 	"github.com/scraletteykt/my-blog/internal/repository"
+	"github.com/scraletteykt/my-blog/internal/tag"
+	"github.com/scraletteykt/my-blog/pkg/auth"
 	"github.com/scraletteykt/my-blog/pkg/storage"
 	"time"
 )
@@ -25,10 +27,11 @@ func New(postsRepo repository.Posts, tagsRepo repository.Tags, postsTagsRepo rep
 }
 
 func (p *Posts) GetPostByID(ctx context.Context, id int) (*Post, error) {
+	u := auth.FromContext(ctx)
 	posts, err := p.getPosts(ctx, repository.PostCriteria{
 		ID:     id,
 		UserID: 0,
-		Status: PostStatusPublished,
+		Status: 0,
 		TagID:  0,
 		Limit:  0,
 		Offset: 0,
@@ -38,6 +41,10 @@ func (p *Posts) GetPostByID(ctx context.Context, id int) (*Post, error) {
 	}
 	if err != nil {
 		return nil, err
+	}
+	post := posts[0]
+	if post.UserID != u.ID && post.Status != PostStatusPublished {
+		return nil, ErrNotFound
 	}
 	return posts[0], nil
 }
@@ -100,17 +107,18 @@ func (p *Posts) CreatePost(ctx context.Context, createPost CreatePost) error {
 }
 
 func (p *Posts) UpdatePost(ctx context.Context, updatePost UpdatePost) error {
-	status := PostStatusDraft
 	var publishedAt repository.NullTime
-	if updatePost.Publish {
-		status = PostStatusPublished
+	if updatePost.Status == PostStatusPublished {
 		publishedAt.Time = time.Now()
 		publishedAt.Valid = true
+	} else {
+		publishedAt.Time = time.Time{}
+		publishedAt.Valid = false
 	}
 	err := p.postsRepo.UpdatePost(ctx, repository.UpdatePost{
 		ID:          updatePost.ID,
 		ReadingTime: updatePost.ReadingTime,
-		Status:      status,
+		Status:      updatePost.Status,
 		Title:       updatePost.Title,
 		Subtitle:    updatePost.Subtitle,
 		ImageURL:    updatePost.ImageURL,
@@ -163,7 +171,7 @@ func (p *Posts) getPosts(ctx context.Context, criteria repository.PostCriteria) 
 		if dbPost.DeletedAt.Valid {
 			deletedAt = dbPost.DeletedAt.Time
 		}
-		tags := make([]*Tag, 0)
+		tags := make([]*tag.Tag, 0)
 		pst := &Post{
 			ID:          dbPost.ID,
 			UserID:      dbPost.UserID,
@@ -181,12 +189,12 @@ func (p *Posts) getPosts(ctx context.Context, criteria repository.PostCriteria) 
 			Tags:        tags,
 		}
 		for _, dbTag := range dbPost.Tags {
-			tag := &Tag{
+			t := &tag.Tag{
 				ID:   dbTag.ID,
 				Name: dbTag.Name,
 				Slug: dbTag.Slug,
 			}
-			pst.Tags = append(pst.Tags, tag)
+			pst.Tags = append(pst.Tags, t)
 		}
 		posts = append(posts, pst)
 	}

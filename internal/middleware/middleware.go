@@ -18,7 +18,7 @@ func Middleware(opts ...Option) []func(handler http.Handler) http.Handler {
 		mw.RequestID,
 		mw.RealIP,
 		mw.Logger,
-		Recover,
+		mw.Recoverer,
 	}
 
 	return mws

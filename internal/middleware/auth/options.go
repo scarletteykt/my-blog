@@ -1,10 +1,10 @@
 package auth
 
 import (
-	"github.com/scraletteykt/my-blog/internal/service"
+	"github.com/scraletteykt/my-blog/internal/user"
 )
 
 type Options struct {
-	Secret   string
-	Services *service.Services
+	Secret string
+	Users  *user.Users
 }

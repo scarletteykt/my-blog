@@ -1,6 +1,8 @@
 package main
 
 import (
+	"github.com/scraletteykt/my-blog/internal/post"
+	"github.com/scraletteykt/my-blog/internal/tag"
 	"log"
 	"os"
 
@@ -41,7 +43,9 @@ func main() {
 
 	repo := repository.New(s)
 	users := user.New(repo)
-	api := apiv1.New(users)
+	posts := post.New(repo, repo, repo)
+	tags := tag.New(repo)
+	api := apiv1.New(users, posts, tags)
 	srv := server.New()
 
 	if err := srv.Run(nil, api.Router()); err != nil {

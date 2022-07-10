@@ -1,7 +1,7 @@
 package auth
 
 import (
-	"github.com/scraletteykt/my-blog/internal/user"
+	"github.com/scraletteykt/my-blog/pkg/auth"
 	"github.com/scraletteykt/my-blog/pkg/cookie"
 	signer "github.com/scraletteykt/my-blog/pkg/sign"
 	"net/http"
@@ -35,13 +35,16 @@ func (a *Auth) Handler(next http.Handler) http.Handler {
 			return
 		}
 
-		u, err := a.Options.Services.Users.GetUser(idCookie.Username)
+		u, err := a.Options.Users.GetUser(idCookie.Username)
 
 		if err != nil {
 			next.ServeHTTP(w, r)
 			return
 		}
 
-		next.ServeHTTP(w, r.WithContext(user.WithUser(r.Context(), u)))
+		next.ServeHTTP(w, r.WithContext(auth.WithUser(r.Context(), auth.User{
+			ID:       u.ID,
+			Username: u.Username,
+		})))
 	})
 }
