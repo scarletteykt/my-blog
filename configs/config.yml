@@ -1,8 +1,5 @@
 http:
-  port: 8000
-  max_header_megabytes: 1
-  read_timeout: 10s
-  write_timeout: 10s
+  port: 8080
 
 postgres:
   host: "localhost"
@@ -10,4 +7,3 @@ postgres:
   user: "postgres"
   dbname: "postgres"
   sslmode: "disable"
-

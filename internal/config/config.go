@@ -1,15 +1,12 @@
 package config
 
 import (
-	"time"
-
+	"fmt"
 	"github.com/spf13/viper"
 )
 
 const (
-	defaultHTTPPort               = "8000"
-	defaultHTTPRWTimeout          = 10 * time.Second
-	defaultHTTPMaxHeaderMegabytes = 1
+	defaultHTTPPort = "8080"
 )
 
 type (
@@ -19,10 +16,7 @@ type (
 	}
 
 	HTTPConfig struct {
-		Port               string        `mapstructure:"port"`
-		ReadTimeout        time.Duration `mapstructure:"read_timeout"`
-		WriteTimeout       time.Duration `mapstructure:"write_timeout"`
-		MaxHeaderMegabytes int           `mapstructure:"max_header_megabytes"`
+		Port string `mapstructure:"port"`
 	}
 
 	PostgresConfig struct {
@@ -54,21 +48,22 @@ func unmarshal(cfg *Config) error {
 	if err := viper.UnmarshalKey("http", &cfg.HTTP); err != nil {
 		return err
 	}
-
 	if err := viper.UnmarshalKey("postgres", &cfg.Postgres); err != nil {
 		return err
 	}
+	return nil
 }
 
 func parseConfig() error {
-	viper.AddConfigPath("configs")
-	viper.SetConfigFile("config")
-	return viper.ReadInConfig()
+	viper.AddConfigPath(".")
+	viper.SetConfigFile("configs/config.yml")
+	if err := viper.ReadInConfig(); err != nil {
+		fmt.Println(err)
+		return err
+	}
+	return nil
 }
 
 func populateDefaults() {
 	viper.SetDefault("http.port", defaultHTTPPort)
-	viper.SetDefault("http.max_header_megabytes", defaultHTTPMaxHeaderMegabytes)
-	viper.SetDefault("http.read_timeout", defaultHTTPRWTimeout)
-	viper.SetDefault("http.write_timeout", defaultHTTPRWTimeout)
 }

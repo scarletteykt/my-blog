@@ -14,7 +14,6 @@ import (
 	"github.com/scraletteykt/my-blog/internal/user"
 	"github.com/scraletteykt/my-blog/pkg/server"
 	"github.com/scraletteykt/my-blog/pkg/storage"
-	"github.com/spf13/viper"
 )
 
 func main() {
@@ -29,12 +28,12 @@ func main() {
 	}
 
 	s, err := storage.New(storage.Config{
-		Host:     viper.GetString("db.host"),
-		Port:     viper.GetString("db.port"),
-		User:     viper.GetString("db.user"),
+		Host:     cfg.Postgres.Host,
+		Port:     cfg.Postgres.Port,
+		User:     cfg.Postgres.User,
 		Password: os.Getenv("DB_PASSWORD"),
-		DBName:   viper.GetString("db.dbname"),
-		SSLMode:  viper.GetString("db.sslmode"),
+		DBName:   cfg.Postgres.DBName,
+		SSLMode:  cfg.Postgres.SSLMode,
 	})
 
 	if err != nil {
