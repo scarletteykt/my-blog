@@ -23,6 +23,7 @@ func NewIDCookie(username string, sign string) *IDCookie {
 		Name:   IDCookieName,
 		Value:  value,
 		MaxAge: IDCookieMaxAge,
+		Path:   "/",
 	}
 
 	return &IDCookie{

@@ -14,15 +14,15 @@ type User struct {
 	PasswordHash string `db:"password_hash"`
 }
 
+type CreateUser struct {
+	Username     string
+	PasswordHash string
+}
+
 type Users interface {
 	CreateUser(createUser CreateUser) (int, error)
 	GetUser(username string) (*User, error)
 	GetUserByID(id int) (*User, error)
-}
-
-type CreateUser struct {
-	Username     string
-	PasswordHash string
 }
 
 func (r *Repo) CreateUser(createUser CreateUser) (int, error) {

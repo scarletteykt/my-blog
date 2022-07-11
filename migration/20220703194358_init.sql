@@ -1,5 +1,4 @@
 -- +goose Up
--- +goose StatementBegin
 CREATE TABLE users
 (
     id            SERIAL NOT NULL UNIQUE,
@@ -30,7 +29,7 @@ CREATE TABLE tags
 (
     id    SERIAL NOT NULL UNIQUE,
     name  VARCHAR(255) NOT NULL UNIQUE,
-    slug  VARCHAR(255) NOT NULL
+    slug  VARCHAR(255) NOT NULL,
     CONSTRAINT pk_tags PRIMARY KEY (id)
 );
 
@@ -38,16 +37,11 @@ CREATE TABLE posts_tags
 (
     id      SERIAL NOT NULL UNIQUE,
     tag_id  INTEGER REFERENCES tags (id) ON DELETE CASCADE NOT NULL,
-    post_id INTEGER REFERENCES posts (id) ON DELETE CASCADE NOT NULL
-    CONSTRAINT pk_tags PRIMARY KEY (id)
+    post_id INTEGER REFERENCES posts (id) ON DELETE CASCADE NOT NULL,
+    CONSTRAINT pk_posts_tags PRIMARY KEY (id)
 );
-
--- +goose StatementEnd
-
 -- +goose Down
--- +goose StatementBegin
 DROP TABLE posts_tags;
 DROP TABLE posts;
 DROP TABLE users;
 DROP TABLE tags;
--- +goose StatementEnd

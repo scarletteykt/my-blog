@@ -10,12 +10,12 @@ import (
 var ErrNotFound = errors.New("not found rows in result set")
 
 type Config struct {
-	Host     string `mapstructure:"host"`
-	Port     string `mapstructure:"port"`
-	User     string `mapstructure:"user"`
+	Host     string
+	Port     string
+	User     string
 	Password string
-	DBName   string `mapstructure:"dbname"`
-	SSLMode  string `sslmode:"host"`
+	DBName   string
+	SSLMode  string
 }
 
 type Storage struct {
@@ -23,15 +23,17 @@ type Storage struct {
 }
 
 func New(cfg Config) (*Storage, error) {
-	db, err := sqlx.Connect("postgres", fmt.Sprintf("host=%s, port=%s, user=%s, password=%s,dbname=%s, sslmode=%s",
-		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.DBName, cfg.SSLMode))
+	url := fmt.Sprintf("postgres://%v:%v@%v:%v/%v?sslmode=disable",
+		cfg.User,
+		cfg.Password,
+		cfg.Host,
+		cfg.Port,
+		cfg.DBName)
+	db, err := sqlx.Connect("postgres", url)
 	if err != nil {
 		return nil, err
 	}
-	s := &Storage{}
-	s.DB = db
-
-	return s, nil
+	return &Storage{db}, nil
 }
 
 func (s *Storage) Transaction(ctx context.Context, t func(tx *sqlx.Tx) error) error {
@@ -45,6 +47,7 @@ func (s *Storage) Transaction(ctx context.Context, t func(tx *sqlx.Tx) error) er
 		if txErr != nil {
 			return errors.New(fmt.Sprintf("error rollback: %v", txErr))
 		}
+		return err
 	}
-	return nil
+	return tx.Commit()
 }

@@ -2,6 +2,7 @@ package post
 
 import (
 	"context"
+	"database/sql"
 	"github.com/pkg/errors"
 	"github.com/scraletteykt/my-blog/internal/repository"
 	"github.com/scraletteykt/my-blog/internal/tag"
@@ -36,9 +37,6 @@ func (p *Posts) GetPostByID(ctx context.Context, id int) (*Post, error) {
 		Limit:  0,
 		Offset: 0,
 	})
-	if err == storage.ErrNotFound {
-		return nil, ErrNotFound
-	}
 	if err != nil {
 		return nil, err
 	}
@@ -93,6 +91,7 @@ func (p *Posts) CreatePost(ctx context.Context, createPost CreatePost) error {
 		Content:     createPost.Content,
 		Slug:        createPost.Content,
 		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
 	})
 	if err != nil {
 		return err
@@ -107,7 +106,7 @@ func (p *Posts) CreatePost(ctx context.Context, createPost CreatePost) error {
 }
 
 func (p *Posts) UpdatePost(ctx context.Context, updatePost UpdatePost) error {
-	var publishedAt repository.NullTime
+	var publishedAt sql.NullTime
 	if updatePost.Status == PostStatusPublished {
 		publishedAt.Time = time.Now()
 		publishedAt.Valid = true
@@ -151,6 +150,9 @@ func (p *Posts) DeletePost(ctx context.Context, deletePost DeletePost) error {
 
 func (p *Posts) getPosts(ctx context.Context, criteria repository.PostCriteria) ([]*Post, error) {
 	dbPosts, err := p.postsRepo.GetPostsByCriteria(ctx, criteria)
+	if err == storage.ErrNotFound {
+		return nil, ErrNotFound
+	}
 	if err != nil {
 		return nil, err
 	}

@@ -83,6 +83,36 @@ func (a *API) GetPosts(w http.ResponseWriter, r *http.Request) {
 	server.ResponseJSON(w, r, posts)
 }
 
+func (a *API) GetPostsByTag(w http.ResponseWriter, r *http.Request) {
+	var page int64
+	if p := r.URL.Query().Get(pageQueryKey); p != "" {
+		page, _ = strconv.ParseInt(p, 10, 0)
+	}
+	if page < 0 {
+		server.ErrorJSON(w, r, http.StatusBadRequest, errors.New("page param must be positive"))
+		return
+	}
+	if page == 0 {
+		page = 1
+	}
+	tagID, err := strconv.ParseInt(chi.URLParam(r, "tagID"), 10, 0)
+	if err != nil {
+		server.ErrorJSON(w, r, http.StatusBadRequest, err)
+		return
+	}
+	posts, err := a.posts.GetPostsByTag(r.Context(), int(tagID), postsOnPage, int((page-1)*postsOnPage))
+	if err == post.ErrNotFound {
+		server.ResponseJSONWithCode(w, r, http.StatusNoContent, struct{}{})
+		return
+	}
+	if err != nil {
+		logger.Warnf("post get: error: %s", err.Error())
+		server.ErrorJSON(w, r, http.StatusInternalServerError, err)
+		return
+	}
+	server.ResponseJSON(w, r, posts)
+}
+
 func (a *API) CreatePost(w http.ResponseWriter, r *http.Request) {
 	var cpost createPost
 	err := json.NewDecoder(r.Body).Decode(&cpost)
@@ -93,14 +123,8 @@ func (a *API) CreatePost(w http.ResponseWriter, r *http.Request) {
 	}
 	u := auth.FromContext(r.Context())
 	if u.ID < 0 {
-		logger.Warnf("post create: unauthorized access error: %s", err.Error())
-		server.ErrorJSON(w, r, http.StatusUnauthorized, err)
-		return
-	}
-	err = json.NewDecoder(r.Body).Decode(&cpost)
-	if err != nil {
-		logger.Warnf("post create: decoder error: %s", err.Error())
-		server.ErrorJSON(w, r, http.StatusBadRequest, err)
+		logger.Warnf("post create: unauthorized access error: %s", errors.New("unauthorized access"))
+		server.ErrorJSON(w, r, http.StatusUnauthorized, errors.New("unauthorized access"))
 		return
 	}
 	err = a.posts.CreatePost(r.Context(), post.CreatePost{
@@ -151,7 +175,7 @@ func (a *API) UpdatePost(w http.ResponseWriter, r *http.Request) {
 		server.ErrorJSON(w, r, http.StatusUnauthorized, err)
 		return
 	}
-	updPost := post.UpdatePost{}
+	updPost := post.UpdatePost{ID: input.ID}
 	if input.ReadingTime != nil {
 		updPost.ReadingTime = *input.ReadingTime
 	} else {

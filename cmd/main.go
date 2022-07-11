@@ -47,7 +47,7 @@ func main() {
 	api := apiv1.New(users, posts, tags)
 	srv := server.New()
 
-	if err := srv.Run(nil, api.Router()); err != nil {
+	if err := srv.Run(cfg, api.Router()); err != nil {
 		log.Fatalf("error occured while running http server: %s", err.Error())
 	}
 }

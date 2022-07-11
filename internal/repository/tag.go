@@ -44,7 +44,7 @@ type DeleteTag struct {
 
 func (r *Repo) GetTagById(ctx context.Context, id int) (*Tag, error) {
 	query := fmt.Sprintf("SELECT %s FROM %s t WHERE t.id = $1", tagSelectQuery, tagsTable)
-	rows, err := r.db.QueryContext(ctx, query, id)
+	rows, err := r.db.QueryxContext(ctx, query, id)
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +59,7 @@ func (r *Repo) GetTagById(ctx context.Context, id int) (*Tag, error) {
 
 func (r *Repo) GetTags(ctx context.Context) ([]*Tag, error) {
 	query := fmt.Sprintf("SELECT %s FROM %s t", tagSelectQuery, tagsTable)
-	rows, err := r.db.QueryContext(ctx, query)
+	rows, err := r.db.QueryxContext(ctx, query)
 	if err == sql.ErrNoRows {
 		return nil, storage.ErrNotFound
 	}
@@ -125,11 +125,11 @@ func (r *Repo) DeleteTag(ctx context.Context, deleteTag DeleteTag) error {
 	return nil
 }
 
-func scanTagRows(rows *sql.Rows) ([]*Tag, error) {
+func scanTagRows(rows *sqlx.Rows) ([]*Tag, error) {
 	out := make([]*Tag, 0)
 	for rows.Next() {
 		t := &Tag{}
-		if err := rows.Scan(t); err != nil {
+		if err := rows.StructScan(t); err != nil {
 			return nil, err
 		}
 		if t.ID > 0 {

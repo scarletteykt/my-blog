@@ -7,6 +7,11 @@ services:
       args:
         - OUTPUT_BINARY=${OUTPUT_BINARY}
         - BUILD_DIR=${BUILD_DIR}
+    environment:
+      - OUTPUT_BINARY=${OUTPUT_BINARY}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
     ports:
       - "8080:8080"
     depends_on:
@@ -23,10 +28,10 @@ services:
     volumes:
       - ./.database/postgres/data:/var/lib/postgresql/data
 
-  migrations:
-    image: app:latest
-    links:
-      - database
-    depends_on:
-      - database
-    command: [ "./wait-for-it/wait-for-it.sh", "database:5432", "--", "make", "migrate" ]
+#  migrations:
+#    image: alpine
+#    links:
+#      - database
+#    depends_on:
+#      - database
+#    command: [ "./wait-for-it/wait-for-it.sh", "database:5432", "--", "make", "migrate" ]

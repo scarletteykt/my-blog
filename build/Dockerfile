@@ -1,20 +1,20 @@
-FROM golang:1.18.3 as builder
+FROM golang:1.18.3-alpine
 ARG OUTPUT_BINARY
 ARG BUILD_DIR
+ARG DB_USER
+ARG DB_PASSWORD
+ARG DB_NAME
+USER 0
 ADD . /app/
 WORKDIR /app
+RUN apk update && apk add --no-cache bash git make
 RUN make build
-
-FROM alpine:3.13.5
-ARG OUTPUT_BINARY
-USER 0
-COPY --from=builder /app/$OUTPUT_BINARY /app/bin
-COPY --from=builder /usr/local/go/ /usr/local/go/
+RUN mkdir -p /go
 ENV GOPATH /go
 ENV PATH $GOPATH/bin:/usr/local/go/bin:$PATH
 RUN mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 777 "$GOPATH"
 RUN go install github.com/pressly/goose/v3/cmd/goose@latest
 RUN git clone https://github.com/vishnubob/wait-for-it.git
-RUN chown -R -f 888:888 /app && chmod +x /app
-USER 888
-CMD['/app/bin']
+RUN ["chmod", "+x", "./build/entrypoint.sh"]
+ENTRYPOINT ["./build/entrypoint.sh"]
+CMD ["sh","-c","make run" ]

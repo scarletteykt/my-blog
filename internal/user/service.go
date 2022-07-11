@@ -16,10 +16,9 @@ type Users struct {
 }
 
 func New(r *repository.Repo) *Users {
-	s := &Users{
+	return &Users{
 		repo: r,
 	}
-	return s
 }
 
 func (s *Users) GetUser(username string) (*User, error) {

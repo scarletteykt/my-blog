@@ -57,13 +57,14 @@ func (a *API) CreateTag(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) UpdateTag(w http.ResponseWriter, r *http.Request) {
 	var utag updateTag
-	id, err := strconv.ParseInt(chi.URLParam(r, "tagID"), 10, 0)
+	err := json.NewDecoder(r.Body).Decode(&utag)
 	if err != nil {
+		logger.Warnf("tag update: decoder error: %s", err.Error())
 		server.ErrorJSON(w, r, http.StatusBadRequest, err)
 		return
 	}
+	id, err := strconv.ParseInt(chi.URLParam(r, "tagID"), 10, 0)
 	if err != nil {
-		logger.Warnf("tag update: decoder error: %s", err.Error())
 		server.ErrorJSON(w, r, http.StatusBadRequest, err)
 		return
 	}
@@ -78,7 +79,7 @@ func (a *API) UpdateTag(w http.ResponseWriter, r *http.Request) {
 		server.ErrorJSON(w, r, http.StatusBadRequest, err)
 		return
 	}
-	updTag := tag.UpdateTag{}
+	updTag := tag.UpdateTag{ID: utag.ID}
 	if utag.Name != nil {
 		updTag.Name = *utag.Name
 	} else {

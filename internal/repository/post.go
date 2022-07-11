@@ -27,27 +27,46 @@ type Posts interface {
 }
 
 type Post struct {
-	ID          int       `db:"p_id"`
-	UserID      int       `db:"p_user_id"`
-	ReadingTime int       `db:"p_reading_time"`
-	Status      int       `db:"p_status"`
-	Title       string    `db:"p_title"`
-	Subtitle    string    `db:"p_subtitle"`
-	ImageURL    string    `db:"p_image_url"`
-	Content     string    `db:"p_content"`
-	Slug        string    `db:"p_slug"`
-	PublishedAt NullTime  `db:"p_published_at"`
-	CreatedAt   time.Time `db:"p_created_at"`
-	UpdatedAt   time.Time `db:"p_updated_at"`
-	DeletedAt   NullTime  `db:"p_deleted_at"`
+	ID          int          `db:"p_id"`
+	UserID      int          `db:"p_user_id"`
+	ReadingTime int          `db:"p_reading_time"`
+	Status      int          `db:"p_status"`
+	Title       string       `db:"p_title"`
+	Subtitle    string       `db:"p_subtitle"`
+	ImageURL    string       `db:"p_image_url"`
+	Content     string       `db:"p_content"`
+	Slug        string       `db:"p_slug"`
+	PublishedAt sql.NullTime `db:"p_published_at"`
+	CreatedAt   time.Time    `db:"p_created_at"`
+	UpdatedAt   time.Time    `db:"p_updated_at"`
+	DeletedAt   sql.NullTime `db:"p_deleted_at"`
 	Tags        []*Tag
 }
 
+type PostTag struct {
+	ID          int            `db:"p_id"`
+	UserID      int            `db:"p_user_id"`
+	ReadingTime int            `db:"p_reading_time"`
+	Status      int            `db:"p_status"`
+	Title       string         `db:"p_title"`
+	Subtitle    string         `db:"p_subtitle"`
+	ImageURL    string         `db:"p_image_url"`
+	Content     string         `db:"p_content"`
+	Slug        string         `db:"p_slug"`
+	PublishedAt sql.NullTime   `db:"p_published_at"`
+	CreatedAt   time.Time      `db:"p_created_at"`
+	UpdatedAt   time.Time      `db:"p_updated_at"`
+	DeletedAt   sql.NullTime   `db:"p_deleted_at"`
+	TagID       sql.NullInt32  `db:"t_id"`
+	TagName     sql.NullString `db:"t_name"`
+	TagSlug     sql.NullString `db:"t_slug"`
+}
+
 type PostCriteria struct {
-	ID     int
-	UserID int
-	Status int
-	TagID  int
+	ID     int `db:"p_id"`
+	UserID int `db:"p_user_id"`
+	Status int `db:"p_status"`
+	TagID  int `db:"t_id"`
 	Limit  int
 	Offset int
 }
@@ -62,6 +81,7 @@ type CreatePost struct {
 	Content     string
 	Slug        string
 	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 type UpdatePost struct {
@@ -73,7 +93,7 @@ type UpdatePost struct {
 	ImageURL    string
 	Content     string
 	Slug        string
-	PublishedAt NullTime
+	PublishedAt sql.NullTime
 	UpdatedAt   time.Time
 }
 
@@ -86,19 +106,19 @@ type DeletePost struct {
 func (r *Repo) GetPostsByCriteria(ctx context.Context, criteria PostCriteria) ([]*Post, error) {
 	where := "1=1 "
 	if criteria.UserID > 0 {
-		where += "AND p.user_id = :user_id "
+		where += "AND p.user_id = :p_user_id "
 	}
 	if criteria.Status != PostStatusDeleted {
 		where += fmt.Sprintf("AND p.status <> %d ", PostStatusDeleted)
 	}
 	if criteria.Status > 0 {
-		where += "AND p.status = :status "
+		where += "AND p.status = :p_status "
 	}
 	if criteria.ID > 0 {
-		where += "AND p.id = :id "
+		where += "AND p.id = :p_id "
 	}
 	if criteria.TagID > 0 {
-		where += "AND t.id = :tag_id "
+		where += "AND t.id = :t_id "
 	}
 	if criteria.Limit == 0 {
 		criteria.Limit = postsPerPage
@@ -112,6 +132,9 @@ func (r *Repo) GetPostsByCriteria(ctx context.Context, criteria PostCriteria) ([
 		postSelectQuery, postsTable, postsTagsTable, tagsTable, subquery)
 
 	rows, err := r.db.NamedQueryContext(ctx, query, criteria)
+	if err == sql.ErrNoRows {
+		return nil, storage.ErrNotFound
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -127,8 +150,8 @@ func (r *Repo) GetPostsByCriteria(ctx context.Context, criteria PostCriteria) ([
 func (r *Repo) CreatePost(ctx context.Context, createPost CreatePost) (int, error) {
 	var id int
 	query := fmt.Sprintf("INSERT INTO %s "+
-		"(user_id, reading_time, status, title, subtitle, image_url, content, slug, created_at) "+
-		"VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id", postsTable)
+		"(user_id, reading_time, status, title, subtitle, image_url, content, slug, created_at, updated_at) "+
+		"VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id", postsTable)
 
 	err := r.db.Transaction(ctx, func(tx *sqlx.Tx) error {
 		rows, err := tx.QueryContext(ctx, query,
@@ -141,6 +164,7 @@ func (r *Repo) CreatePost(ctx context.Context, createPost CreatePost) (int, erro
 			createPost.Content,
 			createPost.Slug,
 			createPost.CreatedAt,
+			createPost.UpdatedAt,
 		)
 		if err != nil {
 			return err
@@ -201,16 +225,36 @@ func scanPostRows(rows *sqlx.Rows) ([]*Post, error) {
 	posts := make(map[int]*Post)
 	out := make([]*Post, 0)
 	for rows.Next() {
-		p := &Post{}
-		t := &Tag{}
-		if err := rows.Scan(p, t); err != nil {
+		pt := &PostTag{}
+		if err := rows.StructScan(pt); err != nil {
 			return nil, err
 		}
-		if _, ok := posts[p.ID]; !ok {
+		if _, ok := posts[pt.ID]; !ok {
+			p := &Post{
+				ID:          pt.ID,
+				UserID:      pt.UserID,
+				ReadingTime: pt.ReadingTime,
+				Status:      pt.Status,
+				Title:       pt.Title,
+				Subtitle:    pt.Subtitle,
+				ImageURL:    pt.ImageURL,
+				Content:     pt.Content,
+				Slug:        pt.Slug,
+				PublishedAt: pt.PublishedAt,
+				CreatedAt:   pt.CreatedAt,
+				UpdatedAt:   pt.UpdatedAt,
+				DeletedAt:   pt.DeletedAt,
+			}
+			p.Tags = make([]*Tag, 0)
 			posts[p.ID] = p
 		}
-		if t.ID > 0 {
-			posts[p.ID].Tags = append(posts[p.ID].Tags, t)
+		if pt.TagID.Valid && pt.TagName.Valid && pt.TagSlug.Valid {
+			t := &Tag{
+				ID:   int(pt.TagID.Int32),
+				Name: pt.TagName.String,
+				Slug: pt.TagSlug.String,
+			}
+			posts[pt.ID].Tags = append(posts[pt.ID].Tags, t)
 		}
 	}
 	for _, p := range posts {
