@@ -1,25 +1,32 @@
 package auth
 
 import (
+	"github.com/scraletteykt/my-blog/internal/user"
 	"github.com/scraletteykt/my-blog/pkg/auth"
 	"github.com/scraletteykt/my-blog/pkg/cookie"
 	signer "github.com/scraletteykt/my-blog/pkg/sign"
 	"net/http"
 )
 
-type Auth struct {
-	Options Options
+type Config struct {
+	Secret string
 }
 
-func New(opts Options) *Auth {
+type Auth struct {
+	secret string
+	users  *user.Users
+}
+
+func New(cfg *Config, users *user.Users) *Auth {
 	return &Auth{
-		Options: opts,
+		secret: cfg.Secret,
+		users:  users,
 	}
 }
 
 func (a *Auth) Handler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		s := signer.NewSigner(a.Options.Secret)
+		s := signer.NewSigner(a.secret)
 		httpCookie, err := r.Cookie(cookie.IDCookieName)
 
 		if err != nil {
@@ -35,7 +42,7 @@ func (a *Auth) Handler(next http.Handler) http.Handler {
 			return
 		}
 
-		u, err := a.Options.Users.GetUser(idCookie.Username)
+		u, err := a.users.GetUser(idCookie.Username)
 
 		if err != nil {
 			next.ServeHTTP(w, r)

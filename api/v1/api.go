@@ -2,23 +2,24 @@ package v1
 
 import (
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/cors"
+	"github.com/scraletteykt/my-blog/internal/config"
 	mw "github.com/scraletteykt/my-blog/internal/middleware"
 	"github.com/scraletteykt/my-blog/internal/middleware/auth"
 	"github.com/scraletteykt/my-blog/internal/post"
 	"github.com/scraletteykt/my-blog/internal/tag"
 	"github.com/scraletteykt/my-blog/internal/user"
-	"net/http"
 )
 
 type API struct {
+	cfg   *config.Config
 	users *user.Users
 	posts *post.Posts
 	tags  *tag.Tags
 }
 
-func New(users *user.Users, posts *post.Posts, tags *tag.Tags) *API {
+func New(cfg *config.Config, users *user.Users, posts *post.Posts, tags *tag.Tags) *API {
 	return &API{
+		cfg:   cfg,
 		users: users,
 		posts: posts,
 		tags:  tags,
@@ -28,25 +29,9 @@ func New(users *user.Users, posts *post.Posts, tags *tag.Tags) *API {
 func (a *API) Router() chi.Router {
 	r := chi.NewRouter()
 
-	r.Use(mw.Middleware(
-		mw.WithCORSOptions(cors.Options{
-			AllowedOrigins: []string{"*"},
-			AllowedMethods: []string{
-				http.MethodHead,
-				http.MethodGet,
-				http.MethodPost,
-				http.MethodPut,
-				http.MethodPatch,
-				http.MethodDelete,
-			},
-			AllowedHeaders:   []string{"*"},
-			AllowCredentials: true,
-		}),
-		mw.WithAuthOptions(auth.Options{
-			Secret: "deadbeef",
-			Users:  a.users,
-		}),
-	)...)
+	mwAuth := auth.New(&auth.Config{Secret: a.cfg.Auth.Secret}, a.users)
+	r.Use(mwAuth.Handler)
+	r.Use(mw.Middleware()...)
 
 	r.Route("/api", func(r chi.Router) {
 		r.Route("/auth", func(r chi.Router) {

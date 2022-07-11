@@ -2,7 +2,10 @@ package config
 
 import (
 	"fmt"
+	"github.com/joho/godotenv"
 	"github.com/spf13/viper"
+	"log"
+	"os"
 )
 
 const (
@@ -13,6 +16,11 @@ type (
 	Config struct {
 		HTTP     HTTPConfig
 		Postgres PostgresConfig
+		Auth     AuthConfig
+	}
+
+	AuthConfig struct {
+		Secret string
 	}
 
 	HTTPConfig struct {
@@ -41,6 +49,8 @@ func InitConfig() (*Config, error) {
 		return nil, err
 	}
 
+	cfg.Postgres.Password = os.Getenv("DB_PASSWORD")
+	cfg.Auth.Secret = os.Getenv("SECRET_KEY")
 	return &cfg, nil
 }
 
@@ -59,6 +69,10 @@ func parseConfig() error {
 	viper.SetConfigFile("configs/config.yml")
 	if err := viper.ReadInConfig(); err != nil {
 		fmt.Println(err)
+		return err
+	}
+	if err := godotenv.Load(); err != nil {
+		log.Fatalf("error loading .env file: %s", err.Error())
 		return err
 	}
 	return nil
