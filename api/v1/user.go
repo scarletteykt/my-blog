@@ -54,7 +54,7 @@ func (a *API) SignUp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	server.ResponseJSONWithCode(w, r, http.StatusOK, nil)
+	server.ResponseJSONWithCode(w, r, http.StatusOK, "ok")
 }
 
 func (a *API) SignIn(w http.ResponseWriter, r *http.Request) {
@@ -84,8 +84,8 @@ func (a *API) SignIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	signer := sign.NewSigner("deadbeef")
+	signer := sign.NewSigner(a.cfg.Auth.Secret)
 	http.SetCookie(w, cookie.NewIDCookie(u.Username, signer.EncodeBase64(signer.Sign(u.Username))).Cookie)
 
-	server.ResponseJSONWithCode(w, r, http.StatusOK, nil)
+	server.ResponseJSONWithCode(w, r, http.StatusOK, "ok")
 }

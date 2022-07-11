@@ -27,11 +27,3 @@ services:
       - "5432:5432"
     volumes:
       - ./.database/postgres/data:/var/lib/postgresql/data
-
-#  migrations:
-#    image: alpine
-#    links:
-#      - database
-#    depends_on:
-#      - database
-#    command: [ "./wait-for-it/wait-for-it.sh", "database:5432", "--", "make", "migrate" ]
