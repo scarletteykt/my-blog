@@ -42,7 +42,7 @@ func (a *Auth) Handler(next http.Handler) http.Handler {
 			return
 		}
 
-		u, err := a.users.GetUser(idCookie.Username)
+		u, err := a.users.GetUser(r.Context(), idCookie.Username)
 
 		if err != nil {
 			next.ServeHTTP(w, r)

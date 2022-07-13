@@ -47,7 +47,7 @@ func (p *Posts) GetPostByID(ctx context.Context, id int) (*Post, error) {
 	return posts[0], nil
 }
 
-func (p *Posts) GetPosts(ctx context.Context, limit, offset int) ([]*Post, error) {
+func (p *Posts) GetPosts(ctx context.Context, limit, offset uint64) ([]*Post, error) {
 	return p.getPosts(ctx, repository.PostCriteria{
 		ID:     0,
 		UserID: 0,
@@ -58,7 +58,7 @@ func (p *Posts) GetPosts(ctx context.Context, limit, offset int) ([]*Post, error
 	})
 }
 
-func (p *Posts) GetPostsByTag(ctx context.Context, tagID, limit, offset int) ([]*Post, error) {
+func (p *Posts) GetPostsByTag(ctx context.Context, tagID int, limit, offset uint64) ([]*Post, error) {
 	return p.getPosts(ctx, repository.PostCriteria{
 		ID:     0,
 		UserID: 0,
@@ -69,7 +69,7 @@ func (p *Posts) GetPostsByTag(ctx context.Context, tagID, limit, offset int) ([]
 	})
 }
 
-func (p *Posts) GetPostsByUser(ctx context.Context, userID, limit, offset int) ([]*Post, error) {
+func (p *Posts) GetPostsByUser(ctx context.Context, userID int, limit, offset uint64) ([]*Post, error) {
 	return p.getPosts(ctx, repository.PostCriteria{
 		ID:     0,
 		UserID: userID,

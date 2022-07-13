@@ -70,7 +70,7 @@ func (a *API) GetPosts(w http.ResponseWriter, r *http.Request) {
 	if page == 0 {
 		page = 1
 	}
-	posts, err := a.posts.GetPosts(r.Context(), postsOnPage, int((page-1)*postsOnPage))
+	posts, err := a.posts.GetPosts(r.Context(), postsOnPage, uint64((page-1)*postsOnPage))
 	if err == post.ErrNotFound {
 		server.ResponseJSONWithCode(w, r, http.StatusNoContent, struct{}{})
 		return
@@ -100,7 +100,7 @@ func (a *API) GetPostsByTag(w http.ResponseWriter, r *http.Request) {
 		server.ErrorJSON(w, r, http.StatusBadRequest, err)
 		return
 	}
-	posts, err := a.posts.GetPostsByTag(r.Context(), int(tagID), postsOnPage, int((page-1)*postsOnPage))
+	posts, err := a.posts.GetPostsByTag(r.Context(), int(tagID), postsOnPage, uint64((page-1)*postsOnPage))
 	if err == post.ErrNotFound {
 		server.ResponseJSONWithCode(w, r, http.StatusNoContent, struct{}{})
 		return

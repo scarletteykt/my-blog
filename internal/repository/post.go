@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"github.com/Masterminds/squirrel"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -11,11 +12,7 @@ import (
 )
 
 const (
-	postsTable      = "posts"
-	postSelectQuery = "p.id AS p_id, p.user_id AS p_user_id, p.reading_time AS p_reading_time, p.status AS p_status, " +
-		"p.title AS p_title, p.subtitle AS p_subtitle, p.image_url AS p_image_url, p.content AS p_content, p.slug AS p_slug, " +
-		"p.published_at AS p_published_at, p.created_at AS p_created_at, p.updated_at AS p_updated_at, p.deleted_at AS p_deleted_at, " +
-		"t.id AS t_id, t.name AS t_name, t.slug AS t_slug "
+	postsTable   = "posts"
 	postsPerPage = 30
 )
 
@@ -67,8 +64,8 @@ type PostCriteria struct {
 	UserID int `db:"p_user_id"`
 	Status int `db:"p_status"`
 	TagID  int `db:"t_id"`
-	Limit  int
-	Offset int
+	Limit  uint64
+	Offset uint64
 }
 
 type CreatePost struct {
@@ -104,32 +101,55 @@ type DeletePost struct {
 }
 
 func (r *Repo) GetPostsByCriteria(ctx context.Context, criteria PostCriteria) ([]*Post, error) {
-	where := "1=1 "
+	sb := squirrel.Select(`p.id`).
+		From(postsTable + " p").
+		LeftJoin(postsTagsTable + " pt ON p.id = pt.post_id").
+		LeftJoin(tagsTable + " t ON pt.tag_id = t.id")
+
 	if criteria.UserID > 0 {
-		where += "AND p.user_id = :p_user_id "
+		sb = sb.Where("p.user_id = :p_user_id", criteria.UserID)
 	}
 	if criteria.Status != PostStatusDeleted {
-		where += fmt.Sprintf("AND p.status <> %d ", PostStatusDeleted)
+		sb = sb.Where(fmt.Sprintf("p.status <> %d", PostStatusDeleted))
 	}
 	if criteria.Status > 0 {
-		where += "AND p.status = :p_status "
+		sb = sb.Where("p.status = :p_status", criteria.Status)
 	}
 	if criteria.ID > 0 {
-		where += "AND p.id = :p_id "
+		sb = sb.Where("p.id = :p_id", criteria.ID)
 	}
 	if criteria.TagID > 0 {
-		where += "AND t.id = :t_id "
+		sb = sb.Where("t.id = :t_id", criteria.TagID)
 	}
 	if criteria.Limit == 0 {
 		criteria.Limit = postsPerPage
 	}
 
-	subquery := fmt.Sprintf("SELECT p.id FROM %s p LEFT JOIN %s pt ON p.id = pt.post_id LEFT JOIN %s t ON pt.tag_id = t.id  "+
-		"WHERE %s GROUP BY p.id LIMIT %d OFFSET %d",
-		postsTable, postsTagsTable, tagsTable, where, criteria.Limit, criteria.Offset)
-	query := fmt.Sprintf("SELECT %s FROM %s p LEFT JOIN %s pt ON p.id = pt.post_id LEFT JOIN %s t ON pt.tag_id = t.id WHERE p.id IN (%s) "+
-		"ORDER BY p.created_at DESC ",
-		postSelectQuery, postsTable, postsTagsTable, tagsTable, subquery)
+	sb.GroupBy("p.id").Limit(criteria.Limit).Offset(criteria.Offset)
+
+	query, _, _ := squirrel.Select(`
+			p.id AS p_id, 
+			p.user_id AS p_user_id, 
+			p.reading_time AS p_reading_time, 
+			p.status AS p_status,
+			p.title AS p_title, 
+			p.subtitle AS p_subtitle, 
+			p.image_url AS p_image_url, 
+			p.content AS p_content, 
+			p.slug AS p_slug, 
+			p.published_at AS p_published_at, 
+			p.created_at AS p_created_at, 
+			p.updated_at AS p_updated_at, 
+			p.deleted_at AS p_deleted_at,
+			t.id AS t_id, 
+			t.name AS t_name, 
+			t.slug AS t_slug`).
+		From(postsTable + " p").
+		LeftJoin(postsTagsTable + " pt ON p.id = pt.post_id").
+		LeftJoin(tagsTable + " t ON pt.tag_id = t.id").
+		Where(subquery("p.id IN", sb)).
+		OrderBy("p.created_at DESC").
+		ToSql()
 
 	rows, err := r.db.NamedQueryContext(ctx, query, criteria)
 	if err == sql.ErrNoRows {
@@ -149,75 +169,68 @@ func (r *Repo) GetPostsByCriteria(ctx context.Context, criteria PostCriteria) ([
 
 func (r *Repo) CreatePost(ctx context.Context, createPost CreatePost) (int, error) {
 	var id int
-	query := fmt.Sprintf("INSERT INTO %s "+
-		"(user_id, reading_time, status, title, subtitle, image_url, content, slug, created_at, updated_at) "+
-		"VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id", postsTable)
-
-	err := r.db.Transaction(ctx, func(tx *sqlx.Tx) error {
-		rows, err := tx.QueryContext(ctx, query,
-			createPost.UserID,
-			createPost.ReadingTime,
-			createPost.Status,
-			createPost.Title,
-			createPost.Subtitle,
-			createPost.ImageURL,
-			createPost.Content,
-			createPost.Slug,
-			createPost.CreatedAt,
-			createPost.UpdatedAt,
-		)
-		if err != nil {
-			return err
-		}
-		defer func() { _ = rows.Close() }()
-		if rows.Next() {
-			if err := rows.Err(); err != nil {
-				return err
-			}
-			if err := rows.Scan(&id); err != nil {
-				return err
-			}
-		}
-		return err
-	})
+	query, args, _ := squirrel.Insert(postsTable).
+		SetMap(map[string]interface{}{
+			"user_id":      createPost.UserID,
+			"reading_time": createPost.ReadingTime,
+			"status":       createPost.Status,
+			"title":        createPost.Title,
+			"subtitle":     createPost.Subtitle,
+			"image_url":    createPost.ImageURL,
+			"content":      createPost.Content,
+			"slug":         createPost.Slug,
+			"created_at":   createPost.CreatedAt,
+			"updated_at":   createPost.UpdatedAt,
+		}).
+		Suffix("RETURNING \"id\"").
+		PlaceholderFormat(squirrel.Dollar).
+		ToSql()
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
-		return id, err
+		return 0, err
+	}
+	defer func() { _ = rows.Close() }()
+	if rows.Next() {
+		if err = rows.Err(); err != nil {
+			return 0, err
+		}
+		if err = rows.Scan(&id); err != nil {
+			return 0, err
+		}
 	}
 	return id, nil
 }
 
 func (r *Repo) UpdatePost(ctx context.Context, updatePost UpdatePost) error {
-	query := fmt.Sprintf("UPDATE %s SET "+
-		"reading_time=$1, status=$2, title=$3, subtitle=$4, image_url=$5, content=$6, slug=$7, published_at=$8, updated_at=$9 "+
-		"WHERE id=$10", postsTable)
-	err := r.db.Transaction(ctx, func(tx *sqlx.Tx) error {
-		_, err := tx.ExecContext(ctx, query,
-			updatePost.ReadingTime,
-			updatePost.Status,
-			updatePost.Title,
-			updatePost.Subtitle,
-			updatePost.ImageURL,
-			updatePost.Content,
-			updatePost.Slug,
-			updatePost.PublishedAt,
-			updatePost.UpdatedAt,
-			updatePost.ID,
-		)
-		return err
-	})
+	query, args, _ := squirrel.Update(postsTable).
+		SetMap(map[string]interface{}{
+			"reading_time": updatePost.ReadingTime,
+			"status":       updatePost.Status,
+			"title":        updatePost.Title,
+			"subtitle":     updatePost.Subtitle,
+			"image_url":    updatePost.ImageURL,
+			"content":      updatePost.Content,
+			"slug":         updatePost.Slug,
+			"published_at": updatePost.PublishedAt,
+			"updated_at":   updatePost.UpdatedAt,
+		}).
+		Where("id = ?", updatePost.ID).
+		PlaceholderFormat(squirrel.Dollar).
+		ToSql()
+	_, err := r.db.ExecContext(ctx, query, args...)
 	return err
 }
 
 func (r *Repo) DeletePost(ctx context.Context, deletePost DeletePost) error {
-	query := fmt.Sprintf("UPDATE %s SET status=$1, deleted_at=$2 WHERE id=$3", postsTable)
-	err := r.db.Transaction(ctx, func(tx *sqlx.Tx) error {
-		_, err := tx.ExecContext(ctx, query,
-			deletePost.Status,
-			deletePost.DeletedAt,
-			deletePost.ID,
-		)
-		return err
-	})
+	query, args, _ := squirrel.Update(postsTable).
+		SetMap(map[string]interface{}{
+			"status":     deletePost.Status,
+			"deleted_at": deletePost.DeletedAt,
+		}).
+		Where("id = ?", deletePost.ID).
+		PlaceholderFormat(squirrel.Dollar).
+		ToSql()
+	_, err := r.db.ExecContext(ctx, query, args...)
 	return err
 }
 
@@ -261,4 +274,9 @@ func scanPostRows(rows *sqlx.Rows) ([]*Post, error) {
 		out = append(out, p)
 	}
 	return out, nil
+}
+
+func subquery(prefix string, sb squirrel.SelectBuilder) squirrel.Sqlizer {
+	s, params, _ := sb.ToSql()
+	return squirrel.Expr(prefix+" ("+s+")", params)
 }

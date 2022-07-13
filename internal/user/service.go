@@ -1,6 +1,7 @@
 package user
 
 import (
+	"context"
 	"errors"
 	"github.com/scraletteykt/my-blog/internal/repository"
 	"github.com/scraletteykt/my-blog/pkg/storage"
@@ -21,8 +22,8 @@ func New(r *repository.Repo) *Users {
 	}
 }
 
-func (s *Users) GetUser(username string) (*User, error) {
-	userDB, err := s.repo.GetUser(username)
+func (s *Users) GetUser(ctx context.Context, username string) (*User, error) {
+	userDB, err := s.repo.GetUser(ctx, username)
 	if err == storage.ErrNotFound {
 		return nil, ErrNotFound
 	}
@@ -39,10 +40,10 @@ func (s *Users) GetUser(username string) (*User, error) {
 	return u, nil
 }
 
-func (s *Users) CreateUser(createUser CreateUser) (*User, error) {
-	_, err := s.repo.GetUser(createUser.Username)
+func (s *Users) CreateUser(ctx context.Context, createUser CreateUser) (*User, error) {
+	_, err := s.repo.GetUser(ctx, createUser.Username)
 	if err == storage.ErrNotFound {
-		id, err := s.repo.CreateUser(repository.CreateUser{
+		id, err := s.repo.CreateUser(ctx, repository.CreateUser{
 			Username:     createUser.Username,
 			PasswordHash: createUser.PasswordHash,
 		})
@@ -50,7 +51,7 @@ func (s *Users) CreateUser(createUser CreateUser) (*User, error) {
 			return nil, err
 		}
 
-		userDB, err := s.repo.GetUserByID(id)
+		userDB, err := s.repo.GetUserByID(ctx, id)
 		if err != nil {
 			return nil, err
 		}

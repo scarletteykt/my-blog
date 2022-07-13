@@ -51,6 +51,7 @@ func (a *API) Router() chi.Router {
 			r.Get("/", a.GetTags)
 			r.Post("/", a.CreateTag)
 			r.Route("/{tagID}", func(r chi.Router) {
+				r.Get("/", a.GetTagByID)
 				r.Get("/posts", a.GetPostsByTag)
 				r.Put("/", a.UpdateTag)
 				r.Delete("/", a.DeleteTag)

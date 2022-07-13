@@ -21,6 +21,25 @@ type updateTag struct {
 	Slug *string `json:"slug"`
 }
 
+func (a *API) GetTagByID(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "tagID"), 10, 0)
+	if err != nil {
+		server.ErrorJSON(w, r, http.StatusBadRequest, err)
+		return
+	}
+	t, err := a.tags.GetTagByID(r.Context(), int(id))
+	if err == tag.ErrNotFound {
+		server.ResponseJSONWithCode(w, r, http.StatusNoContent, struct{}{})
+		return
+	}
+	if err != nil {
+		logger.Warnf("tag get by id: error: %s", err.Error())
+		server.ErrorJSON(w, r, http.StatusInternalServerError, err)
+		return
+	}
+	server.ResponseJSON(w, r, t)
+}
+
 func (a *API) GetTags(w http.ResponseWriter, r *http.Request) {
 	t, err := a.tags.GetTags(r.Context())
 	if err == tag.ErrNotFound {

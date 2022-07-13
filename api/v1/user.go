@@ -39,7 +39,7 @@ func (a *API) SignUp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = a.users.CreateUser(user.CreateUser{
+	_, err = a.users.CreateUser(r.Context(), user.CreateUser{
 		Username:     s.Username,
 		PasswordHash: hashed,
 	})
@@ -67,7 +67,7 @@ func (a *API) SignIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	u, err := a.users.GetUser(s.Username)
+	u, err := a.users.GetUser(r.Context(), s.Username)
 	if err == user.ErrNotFound {
 		server.ErrorJSON(w, r, http.StatusUnauthorized, err)
 		return

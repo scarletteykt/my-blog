@@ -2,7 +2,7 @@ package repository
 
 import (
 	"context"
-	"fmt"
+	"github.com/Masterminds/squirrel"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -15,31 +15,40 @@ type PostsTags interface {
 }
 
 func (r *Repo) TagPost(ctx context.Context, tagID, postID int) error {
-	query := fmt.Sprintf("INSERT INTO %s (tag_id, post_id) VALUES ($1, $2)", postsTagsTable)
-	err := r.db.Transaction(ctx, func(tx *sqlx.Tx) error {
-		_, err := tx.ExecContext(ctx, query, tagID, postID)
-		return err
-	})
+	query, args, _ := squirrel.Insert(postsTagsTable).
+		SetMap(map[string]interface{}{
+			"tag_id":  tagID,
+			"post_id": postID,
+		}).
+		ToSql()
+	_, err := r.db.ExecContext(ctx, query, args...)
 	return err
 }
 
 func (r *Repo) UntagPost(ctx context.Context, tagID, postID int) error {
-	query := fmt.Sprintf("DELETE FROM %s WHERE tag_id = $1 AND post_id = $2", postsTagsTable)
-	err := r.db.Transaction(ctx, func(tx *sqlx.Tx) error {
-		_, err := tx.ExecContext(ctx, query, tagID, postID)
-		return err
-	})
+	query, args, _ := squirrel.Delete(postsTagsTable).
+		Where("tag_id = ? AND post_id = ?", tagID, postID).
+		PlaceholderFormat(squirrel.Dollar).
+		ToSql()
+	_, err := r.db.ExecContext(ctx, query, args...)
 	return err
 }
 
 func (r *Repo) UpdatePostTags(ctx context.Context, tagIDs []int, postID int) error {
 	err := r.db.Transaction(ctx, func(tx *sqlx.Tx) error {
-		query := fmt.Sprintf("DELETE FROM %s WHERE post_id = $1", postsTagsTable)
-		_, err := tx.ExecContext(ctx, query, postID)
+		query, args, _ := squirrel.Delete(postsTagsTable).
+			Where("post_id = ?", postID).
+			PlaceholderFormat(squirrel.Dollar).
+			ToSql()
+		_, err := tx.ExecContext(ctx, query, args...)
 		if err != nil {
 			return err
 		}
-		query = fmt.Sprintf("INSERT INTO %s (tag_id, post_id) VALUES($1, $2)", postsTagsTable)
+		query, _, _ = squirrel.Insert(postsTagsTable).
+			PlaceholderFormat(squirrel.Dollar).
+			Columns("tag_id", "post_id").
+			Values("", "").
+			ToSql()
 		stmt, err := tx.Prepare(query)
 		if err != nil {
 			return err

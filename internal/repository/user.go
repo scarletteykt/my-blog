@@ -1,8 +1,9 @@
 package repository
 
 import (
+	"context"
 	"database/sql"
-	"fmt"
+	"github.com/Masterminds/squirrel"
 	"github.com/scraletteykt/my-blog/pkg/storage"
 )
 
@@ -20,16 +21,23 @@ type CreateUser struct {
 }
 
 type Users interface {
-	CreateUser(createUser CreateUser) (int, error)
-	GetUser(username string) (*User, error)
-	GetUserByID(id int) (*User, error)
+	CreateUser(ctx context.Context, createUser CreateUser) (int, error)
+	GetUser(ctx context.Context, username string) (*User, error)
+	GetUserByID(ctx context.Context, userID int) (*User, error)
 }
 
-func (r *Repo) CreateUser(createUser CreateUser) (int, error) {
+func (r *Repo) CreateUser(ctx context.Context, createUser CreateUser) (int, error) {
 	var id int
-	query := fmt.Sprintf("INSERT INTO %s (username, password_hash) values ($1, $2) RETURNING id", usersTable)
-
-	row := r.db.QueryRow(query, createUser.Username, createUser.PasswordHash)
+	query, args, _ := squirrel.Insert(usersTable).
+		SetMap(map[string]interface{}{
+			"username":      createUser.Username,
+			"password_hash": createUser.PasswordHash,
+		}).
+		Suffix("RETURNING \"id\"").
+		RunWith(r.db).
+		PlaceholderFormat(squirrel.Dollar).
+		ToSql()
+	row := r.db.QueryRowContext(ctx, query, args...)
 	if err := row.Scan(&id); err != nil {
 		return 0, err
 	}
@@ -37,20 +45,36 @@ func (r *Repo) CreateUser(createUser CreateUser) (int, error) {
 	return id, nil
 }
 
-func (r *Repo) GetUser(username string) (*User, error) {
+func (r *Repo) GetUser(ctx context.Context, username string) (*User, error) {
 	var u User
-	query := fmt.Sprintf("SELECT id, username, password_hash FROM %s WHERE username=$1", usersTable)
-	err := r.db.Get(&u, query, username)
+	query, args, _ := squirrel.Select(`
+			id,
+			username,
+			password_hash
+		`).
+		From(usersTable).
+		Where("username = ?", username).
+		PlaceholderFormat(squirrel.Dollar).
+		ToSql()
+	err := r.db.GetContext(ctx, &u, query, args...)
 	if err == sql.ErrNoRows {
 		return nil, storage.ErrNotFound
 	}
 	return &u, err
 }
 
-func (r *Repo) GetUserByID(id int) (*User, error) {
+func (r *Repo) GetUserByID(ctx context.Context, id int) (*User, error) {
 	var u User
-	query := fmt.Sprintf("SELECT id, username, password_hash FROM %s WHERE id=$1", usersTable)
-	err := r.db.Get(&u, query, id)
+	query, args, _ := squirrel.Select(`
+			id,
+			username,
+			password_hash
+		`).
+		From(usersTable).
+		Where("id = ?", id).
+		PlaceholderFormat(squirrel.Dollar).
+		ToSql()
+	err := r.db.GetContext(ctx, &u, query, args...)
 	if err == sql.ErrNoRows {
 		return nil, storage.ErrNotFound
 	}
