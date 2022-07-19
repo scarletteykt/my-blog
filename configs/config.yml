@@ -1,0 +1,12 @@
+http:
+  port: 8080
+  maxHeaderBytes: 1
+  readTimeout: 10s
+  writeTimeout: 10s
+
+postgres:
+  host: "database"
+  port: "5432"
+  user: "blog"
+  dbname: "blog"
+  sslmode: "disable"
