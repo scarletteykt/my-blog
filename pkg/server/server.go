@@ -10,14 +10,17 @@ type Server struct {
 	httpServer *http.Server
 }
 
-func New() *Server {
+func NewServer() *Server {
 	return &Server{}
 }
 
 func (s *Server) Run(cfg *config.Config, handler http.Handler) error {
 	s.httpServer = &http.Server{
-		Addr:    ":" + cfg.HTTP.Port,
-		Handler: handler,
+		Addr:           ":" + cfg.HTTP.Port,
+		Handler:        handler,
+		ReadTimeout:    cfg.HTTP.ReadTimeout,
+		WriteTimeout:   cfg.HTTP.WriteTimeout,
+		MaxHeaderBytes: cfg.HTTP.MaxHeaderMegabytes << 20,
 	}
 	return s.httpServer.ListenAndServe()
 }

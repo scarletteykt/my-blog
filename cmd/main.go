@@ -4,41 +4,39 @@ import (
 	_ "github.com/lib/pq"
 	apiv1 "github.com/scraletteykt/my-blog/api/v1"
 	"github.com/scraletteykt/my-blog/internal/config"
-	"github.com/scraletteykt/my-blog/internal/post"
 	"github.com/scraletteykt/my-blog/internal/repository"
-	"github.com/scraletteykt/my-blog/internal/tag"
-	"github.com/scraletteykt/my-blog/internal/user"
+	"github.com/scraletteykt/my-blog/internal/service"
+	"github.com/scraletteykt/my-blog/pkg/logger"
 	"github.com/scraletteykt/my-blog/pkg/server"
-	"github.com/scraletteykt/my-blog/pkg/storage"
-	"log"
 )
 
 func main() {
-	cfg, err := config.InitConfig()
+	log := logger.NewLogger()
+
+	cfg, err := config.NewConfig(log)
 
 	if err != nil {
 		log.Fatalf("error initializing configs: %s", err.Error())
 	}
 
-	s, err := storage.New(storage.Config{
+	dbConn, err := repository.NewPostgresDB(config.PostgresConfig{
 		Host:     cfg.Postgres.Host,
 		Port:     cfg.Postgres.Port,
 		User:     cfg.Postgres.User,
-		Password: cfg.Postgres.Password,
 		DBName:   cfg.Postgres.DBName,
 		SSLMode:  cfg.Postgres.SSLMode,
+		Password: cfg.Postgres.Password,
 	})
-
 	if err != nil {
 		log.Fatalf("error initializing db: %s", err.Error())
 	}
 
-	repo := repository.New(s)
-	users := user.New(repo)
-	posts := post.New(repo, repo, repo)
-	tags := tag.New(repo)
-	api := apiv1.New(cfg, users, posts, tags)
-	srv := server.New()
+	repo := repository.NewRepositories(dbConn, log)
+	users := service.NewUsersService(*repo.Users, log)
+	posts := service.NewPostsService(*repo.Posts, *repo.Tags, *repo.PostsTags, log)
+	tags := service.NewTagsService(*repo.Tags, log)
+	api := apiv1.NewAPI(cfg, users, posts, tags, log)
+	srv := server.NewServer()
 
 	if err := srv.Run(cfg, api.Router()); err != nil {
 		log.Fatalf("error occured while running http server: %s", err.Error())

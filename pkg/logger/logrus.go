@@ -4,34 +4,50 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func Debug(msg ...interface{}) {
-	logrus.Debug(msg...)
+type Logrus struct {
+	logger *logrus.Logger
 }
 
-func Debugf(format string, args ...interface{}) {
-	logrus.Debugf(format, args...)
+func NewLogger() Logger {
+	return &Logrus{logrus.New()}
 }
 
-func Info(msg ...interface{}) {
-	logrus.Info(msg...)
+func (l *Logrus) Debug(msg ...interface{}) {
+	l.logger.Debug(msg...)
 }
 
-func Infof(format string, args ...interface{}) {
-	logrus.Infof(format, args...)
+func (l *Logrus) Debugf(format string, args ...interface{}) {
+	l.logger.Debugf(format, args...)
 }
 
-func Warn(msg ...interface{}) {
-	logrus.Warn(msg...)
+func (l *Logrus) Info(msg ...interface{}) {
+	l.logger.Info(msg...)
 }
 
-func Warnf(format string, args ...interface{}) {
-	logrus.Warnf(format, args...)
+func (l *Logrus) Infof(format string, args ...interface{}) {
+	l.logger.Infof(format, args...)
 }
 
-func Error(msg ...interface{}) {
-	logrus.Error(msg...)
+func (l *Logrus) Warn(msg ...interface{}) {
+	l.logger.Warn(msg...)
 }
 
-func Errorf(format string, args ...interface{}) {
-	logrus.Errorf(format, args...)
+func (l *Logrus) Warnf(format string, args ...interface{}) {
+	l.logger.Warnf(format, args...)
+}
+
+func (l *Logrus) Error(msg ...interface{}) {
+	l.logger.Error(msg...)
+}
+
+func (l *Logrus) Errorf(format string, args ...interface{}) {
+	l.logger.Errorf(format, args...)
+}
+
+func (l *Logrus) Fatal(msg ...interface{}) {
+	l.logger.Fatal(msg...)
+}
+
+func (l *Logrus) Fatalf(format string, args ...interface{}) {
+	l.logger.Fatalf(format, args...)
 }
