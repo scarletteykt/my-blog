@@ -5,23 +5,17 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/Masterminds/squirrel"
+	"github.com/scraletteykt/my-blog/internal/domain"
+	"github.com/scraletteykt/my-blog/pkg/logger"
 	"time"
 
 	"github.com/jmoiron/sqlx"
-	"github.com/scraletteykt/my-blog/pkg/storage"
 )
 
 const (
 	postsTable   = "posts"
 	postsPerPage = 30
 )
-
-type Posts interface {
-	GetPostsByCriteria(ctx context.Context, criteria PostCriteria) ([]*Post, error)
-	CreatePost(ctx context.Context, createPost CreatePost) (int, error)
-	UpdatePost(ctx context.Context, updatePost UpdatePost) error
-	DeletePost(ctx context.Context, deletePost DeletePost) error
-}
 
 type Post struct {
 	ID          int          `db:"p_id"`
@@ -100,7 +94,19 @@ type DeletePost struct {
 	DeletedAt time.Time
 }
 
-func (r *Repo) GetPostsByCriteria(ctx context.Context, criteria PostCriteria) ([]*Post, error) {
+type PostsRepo struct {
+	db  *sqlx.DB
+	log logger.Logger
+}
+
+func NewPostsRepo(db *sqlx.DB, log logger.Logger) *PostsRepo {
+	return &PostsRepo{
+		db:  db,
+		log: log,
+	}
+}
+
+func (r *PostsRepo) GetPostsByCriteria(ctx context.Context, criteria PostCriteria) ([]*Post, error) {
 	sb := squirrel.Select(`p.id`).
 		From(postsTable + " p").
 		LeftJoin(postsTagsTable + " pt ON p.id = pt.post_id").
@@ -109,8 +115,8 @@ func (r *Repo) GetPostsByCriteria(ctx context.Context, criteria PostCriteria) ([
 	if criteria.UserID > 0 {
 		sb = sb.Where("p.user_id = :p_user_id", criteria.UserID)
 	}
-	if criteria.Status != PostStatusDeleted {
-		sb = sb.Where(fmt.Sprintf("p.status <> %d", PostStatusDeleted))
+	if criteria.Status != domain.PostStatusDeleted {
+		sb = sb.Where(fmt.Sprintf("p.status <> %d", domain.PostStatusDeleted))
 	}
 	if criteria.Status > 0 {
 		sb = sb.Where("p.status = :p_status", criteria.Status)
@@ -153,7 +159,7 @@ func (r *Repo) GetPostsByCriteria(ctx context.Context, criteria PostCriteria) ([
 
 	rows, err := r.db.NamedQueryContext(ctx, query, criteria)
 	if err == sql.ErrNoRows {
-		return nil, storage.ErrNotFound
+		return nil, ErrNotFound
 	}
 	if err != nil {
 		return nil, err
@@ -162,12 +168,12 @@ func (r *Repo) GetPostsByCriteria(ctx context.Context, criteria PostCriteria) ([
 
 	out, err := scanPostRows(rows)
 	if err == sql.ErrNoRows || len(out) == 0 {
-		return nil, storage.ErrNotFound
+		return nil, ErrNotFound
 	}
 	return out, nil
 }
 
-func (r *Repo) CreatePost(ctx context.Context, createPost CreatePost) (int, error) {
+func (r *PostsRepo) CreatePost(ctx context.Context, createPost CreatePost) (int, error) {
 	var id int
 	query, args, _ := squirrel.Insert(postsTable).
 		SetMap(map[string]interface{}{
@@ -201,7 +207,7 @@ func (r *Repo) CreatePost(ctx context.Context, createPost CreatePost) (int, erro
 	return id, nil
 }
 
-func (r *Repo) UpdatePost(ctx context.Context, updatePost UpdatePost) error {
+func (r *PostsRepo) UpdatePost(ctx context.Context, updatePost UpdatePost) error {
 	query, args, _ := squirrel.Update(postsTable).
 		SetMap(map[string]interface{}{
 			"reading_time": updatePost.ReadingTime,
@@ -221,7 +227,7 @@ func (r *Repo) UpdatePost(ctx context.Context, updatePost UpdatePost) error {
 	return err
 }
 
-func (r *Repo) DeletePost(ctx context.Context, deletePost DeletePost) error {
+func (r *PostsRepo) DeletePost(ctx context.Context, deletePost DeletePost) error {
 	query, args, _ := squirrel.Update(postsTable).
 		SetMap(map[string]interface{}{
 			"status":     deletePost.Status,

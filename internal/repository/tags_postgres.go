@@ -5,18 +5,10 @@ import (
 	"database/sql"
 	"github.com/Masterminds/squirrel"
 	"github.com/jmoiron/sqlx"
-	"github.com/scraletteykt/my-blog/pkg/storage"
+	"github.com/scraletteykt/my-blog/pkg/logger"
 )
 
 const tagsTable = "tags"
-
-type Tags interface {
-	GetTagById(ctx context.Context, id int) (*Tag, error)
-	GetTags(ctx context.Context) ([]*Tag, error)
-	CreateTag(ctx context.Context, createTag CreateTag) (int, error)
-	UpdateTag(ctx context.Context, updateTag UpdateTag) error
-	DeleteTag(ctx context.Context, deleteTag DeleteTag) error
-}
 
 type Tag struct {
 	ID   int    `db:"t_id"`
@@ -39,7 +31,19 @@ type DeleteTag struct {
 	ID int
 }
 
-func (r *Repo) GetTagById(ctx context.Context, id int) (*Tag, error) {
+type TagsRepo struct {
+	db  *sqlx.DB
+	log logger.Logger
+}
+
+func NewTagsRepo(db *sqlx.DB, log logger.Logger) *TagsRepo {
+	return &TagsRepo{
+		db:  db,
+		log: log,
+	}
+}
+
+func (r *TagsRepo) GetTagByID(ctx context.Context, id int) (*Tag, error) {
 	query, args, _ := squirrel.Select(`
 			t.id AS t_id,
 			t.name AS t_name,
@@ -57,12 +61,12 @@ func (r *Repo) GetTagById(ctx context.Context, id int) (*Tag, error) {
 
 	out, err := scanTagRows(rows)
 	if err == sql.ErrNoRows || len(out) == 0 {
-		return nil, storage.ErrNotFound
+		return nil, ErrNotFound
 	}
 	return out[0], err
 }
 
-func (r *Repo) GetTags(ctx context.Context) ([]*Tag, error) {
+func (r *TagsRepo) GetTags(ctx context.Context) ([]*Tag, error) {
 	query, _, _ := squirrel.Select(`
 			t.id AS t_id,
 			t.name AS t_name,
@@ -73,7 +77,7 @@ func (r *Repo) GetTags(ctx context.Context) ([]*Tag, error) {
 		ToSql()
 	rows, err := r.db.QueryxContext(ctx, query)
 	if err == sql.ErrNoRows {
-		return nil, storage.ErrNotFound
+		return nil, ErrNotFound
 	}
 	if err != nil {
 		return nil, err
@@ -82,12 +86,12 @@ func (r *Repo) GetTags(ctx context.Context) ([]*Tag, error) {
 
 	out, err := scanTagRows(rows)
 	if err == sql.ErrNoRows || len(out) == 0 {
-		return nil, storage.ErrNotFound
+		return nil, ErrNotFound
 	}
 	return out, nil
 }
 
-func (r *Repo) CreateTag(ctx context.Context, createTag CreateTag) (int, error) {
+func (r *TagsRepo) CreateTag(ctx context.Context, createTag CreateTag) (int, error) {
 	var id int
 	query, args, _ := squirrel.Insert(tagsTable).
 		SetMap(map[string]interface{}{
@@ -113,7 +117,7 @@ func (r *Repo) CreateTag(ctx context.Context, createTag CreateTag) (int, error) 
 	return id, nil
 }
 
-func (r *Repo) UpdateTag(ctx context.Context, updateTag UpdateTag) error {
+func (r *TagsRepo) UpdateTag(ctx context.Context, updateTag UpdateTag) error {
 	query, args, _ := squirrel.Update(tagsTable).
 		SetMap(map[string]interface{}{
 			"name": updateTag.Name,
@@ -126,7 +130,7 @@ func (r *Repo) UpdateTag(ctx context.Context, updateTag UpdateTag) error {
 	return err
 }
 
-func (r *Repo) DeleteTag(ctx context.Context, deleteTag DeleteTag) error {
+func (r *TagsRepo) DeleteTag(ctx context.Context, deleteTag DeleteTag) error {
 	query, args, _ := squirrel.Delete(tagsTable).
 		Where("id = ?", deleteTag.ID).
 		PlaceholderFormat(squirrel.Dollar).

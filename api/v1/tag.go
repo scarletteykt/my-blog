@@ -3,8 +3,8 @@ package v1
 import (
 	"encoding/json"
 	"github.com/go-chi/chi/v5"
-	"github.com/scraletteykt/my-blog/internal/tag"
-	"github.com/scraletteykt/my-blog/pkg/logger"
+	"github.com/scraletteykt/my-blog/internal/domain"
+	"github.com/scraletteykt/my-blog/internal/service"
 	"github.com/scraletteykt/my-blog/pkg/server"
 	"net/http"
 	"strconv"
@@ -28,12 +28,12 @@ func (a *API) GetTagByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	t, err := a.tags.GetTagByID(r.Context(), int(id))
-	if err == tag.ErrNotFound {
+	if err == service.ErrNotFound {
 		server.ResponseJSONWithCode(w, r, http.StatusNoContent, struct{}{})
 		return
 	}
 	if err != nil {
-		logger.Warnf("tag get by id: error: %s", err.Error())
+		a.log.Errorf("error: get tag by id: %s", err.Error())
 		server.ErrorJSON(w, r, http.StatusInternalServerError, err)
 		return
 	}
@@ -42,12 +42,12 @@ func (a *API) GetTagByID(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) GetTags(w http.ResponseWriter, r *http.Request) {
 	t, err := a.tags.GetTags(r.Context())
-	if err == tag.ErrNotFound {
+	if err == service.ErrNotFound {
 		server.ResponseJSONWithCode(w, r, http.StatusNoContent, struct{}{})
 		return
 	}
 	if err != nil {
-		logger.Warnf("tags get: error: %s", err.Error())
+		a.log.Errorf("error: get tags: %s", err.Error())
 		server.ErrorJSON(w, r, http.StatusInternalServerError, err)
 		return
 	}
@@ -58,16 +58,16 @@ func (a *API) CreateTag(w http.ResponseWriter, r *http.Request) {
 	var ctag createTag
 	err := json.NewDecoder(r.Body).Decode(&ctag)
 	if err != nil {
-		logger.Warnf("tag create: decoder error: %s", err.Error())
+		a.log.Warnf("warn: create tag, decoder error: %s", err.Error())
 		server.ErrorJSON(w, r, http.StatusBadRequest, err)
 		return
 	}
-	err = a.tags.CreateTag(r.Context(), tag.CreateTag{
+	err = a.tags.CreateTag(r.Context(), domain.CreateTag{
 		Name: ctag.Name,
 		Slug: ctag.Slug,
 	})
 	if err != nil {
-		logger.Warnf("tag create: error: %s", err.Error())
+		a.log.Errorf("error: create tag: %s", err.Error())
 		server.ErrorJSON(w, r, http.StatusInternalServerError, err)
 		return
 	}
@@ -78,7 +78,7 @@ func (a *API) UpdateTag(w http.ResponseWriter, r *http.Request) {
 	var utag updateTag
 	err := json.NewDecoder(r.Body).Decode(&utag)
 	if err != nil {
-		logger.Warnf("tag update: decoder error: %s", err.Error())
+		a.log.Warnf("warn: tag update, decoder error: %s", err.Error())
 		server.ErrorJSON(w, r, http.StatusBadRequest, err)
 		return
 	}
@@ -89,16 +89,16 @@ func (a *API) UpdateTag(w http.ResponseWriter, r *http.Request) {
 	}
 	utag.ID = int(id)
 	originalTag, err := a.tags.GetTagByID(r.Context(), utag.ID)
-	if err == tag.ErrNotFound {
+	if err == service.ErrNotFound {
 		server.ErrorJSON(w, r, http.StatusNotFound, err)
 		return
 	}
 	if err != nil {
-		logger.Warnf("tag update: error: %s", err.Error())
+		a.log.Errorf("error: update tag: %s", err.Error())
 		server.ErrorJSON(w, r, http.StatusBadRequest, err)
 		return
 	}
-	updTag := tag.UpdateTag{ID: utag.ID}
+	updTag := domain.UpdateTag{ID: utag.ID}
 	if utag.Name != nil {
 		updTag.Name = *utag.Name
 	} else {
@@ -111,7 +111,7 @@ func (a *API) UpdateTag(w http.ResponseWriter, r *http.Request) {
 	}
 	err = a.tags.UpdateTag(r.Context(), updTag)
 	if err != nil {
-		logger.Warnf("tag update: error: %s", err.Error())
+		a.log.Errorf("error: update tag: %s", err.Error())
 		server.ErrorJSON(w, r, http.StatusInternalServerError, err)
 		return
 	}
@@ -125,18 +125,18 @@ func (a *API) DeleteTag(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_, err = a.tags.GetTagByID(r.Context(), int(id))
-	if err == tag.ErrNotFound {
+	if err == service.ErrNotFound {
 		server.ErrorJSON(w, r, http.StatusNotFound, err)
 		return
 	}
 	if err != nil {
-		logger.Warnf("tag delete: error: %s", err.Error())
+		a.log.Errorf("error: delete tag: %s", err.Error())
 		server.ErrorJSON(w, r, http.StatusInternalServerError, err)
 		return
 	}
-	err = a.tags.DeleteTag(r.Context(), tag.DeleteTag{ID: int(id)})
+	err = a.tags.DeleteTag(r.Context(), domain.DeleteTag{ID: int(id)})
 	if err != nil {
-		logger.Warnf("tag delete: error: %s", err.Error())
+		a.log.Errorf("error: delete tag: %s", err.Error())
 		server.ErrorJSON(w, r, http.StatusInternalServerError, err)
 		return
 	}

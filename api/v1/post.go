@@ -4,10 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/go-chi/chi/v5"
-	"github.com/scraletteykt/my-blog/internal/post"
-	"github.com/scraletteykt/my-blog/internal/tag"
+	"github.com/scraletteykt/my-blog/internal/domain"
+	"github.com/scraletteykt/my-blog/internal/service"
 	"github.com/scraletteykt/my-blog/pkg/auth"
-	"github.com/scraletteykt/my-blog/pkg/logger"
 	"github.com/scraletteykt/my-blog/pkg/server"
 	"net/http"
 	"strconv"
@@ -47,12 +46,13 @@ func (a *API) GetPostByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p, err := a.posts.GetPostByID(r.Context(), int(id))
-	if err == post.ErrNotFound {
+	if err == service.ErrNotFound {
 		server.ErrorJSON(w, r, http.StatusNotFound, err)
 		return
 	}
 	if err != nil {
 		server.ErrorJSON(w, r, http.StatusInternalServerError, err)
+		a.log.Errorf("error: get post by id: %s", err.Error())
 		return
 	}
 	server.ResponseJSON(w, r, p)
@@ -71,12 +71,12 @@ func (a *API) GetPosts(w http.ResponseWriter, r *http.Request) {
 		page = 1
 	}
 	posts, err := a.posts.GetPosts(r.Context(), postsOnPage, uint64((page-1)*postsOnPage))
-	if err == post.ErrNotFound {
+	if err == service.ErrNotFound {
 		server.ResponseJSONWithCode(w, r, http.StatusNoContent, struct{}{})
 		return
 	}
 	if err != nil {
-		logger.Warnf("post get: error: %s", err.Error())
+		a.log.Errorf("error: get posts: %s", err.Error())
 		server.ErrorJSON(w, r, http.StatusInternalServerError, err)
 		return
 	}
@@ -101,12 +101,12 @@ func (a *API) GetPostsByTag(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	posts, err := a.posts.GetPostsByTag(r.Context(), int(tagID), postsOnPage, uint64((page-1)*postsOnPage))
-	if err == post.ErrNotFound {
+	if err == service.ErrNotFound {
 		server.ResponseJSONWithCode(w, r, http.StatusNoContent, struct{}{})
 		return
 	}
 	if err != nil {
-		logger.Warnf("post get: error: %s", err.Error())
+		a.log.Errorf("error: get posts by tag: %s", err.Error())
 		server.ErrorJSON(w, r, http.StatusInternalServerError, err)
 		return
 	}
@@ -117,17 +117,16 @@ func (a *API) CreatePost(w http.ResponseWriter, r *http.Request) {
 	var cpost createPost
 	err := json.NewDecoder(r.Body).Decode(&cpost)
 	if err != nil {
-		logger.Warnf("post create: decoder error: %s", err.Error())
+		a.log.Warnf("warn: post create: decoder error: %s", err.Error())
 		server.ErrorJSON(w, r, http.StatusBadRequest, err)
 		return
 	}
 	u := auth.FromContext(r.Context())
 	if u.ID < 0 {
-		logger.Warnf("post create: unauthorized access error: %s", errors.New("unauthorized access"))
 		server.ErrorJSON(w, r, http.StatusUnauthorized, errors.New("unauthorized access"))
 		return
 	}
-	err = a.posts.CreatePost(r.Context(), post.CreatePost{
+	err = a.posts.CreatePost(r.Context(), domain.CreatePost{
 		UserID:      u.ID,
 		ReadingTime: cpost.ReadingTime,
 		Title:       cpost.Title,
@@ -138,7 +137,7 @@ func (a *API) CreatePost(w http.ResponseWriter, r *http.Request) {
 		TagIDs:      cpost.TagIDs,
 	})
 	if err != nil {
-		logger.Warnf("post create: error: %s", err.Error())
+		a.log.Errorf("error: post create: %s", err.Error())
 		server.ErrorJSON(w, r, http.StatusInternalServerError, err)
 		return
 	}
@@ -155,27 +154,26 @@ func (a *API) UpdatePost(w http.ResponseWriter, r *http.Request) {
 	u := auth.FromContext(r.Context())
 	err = json.NewDecoder(r.Body).Decode(&input)
 	if err != nil {
-		logger.Warnf("post update: decoder error: %s", err.Error())
+		a.log.Warnf("warn: post update: decoder error: %s", err.Error())
 		server.ErrorJSON(w, r, http.StatusBadRequest, err)
 		return
 	}
 	input.ID = int(id)
 	originalPost, err := a.posts.GetPostByID(r.Context(), input.ID)
-	if err == post.ErrNotFound {
+	if err == service.ErrNotFound {
 		server.ErrorJSON(w, r, http.StatusNotFound, err)
 		return
 	}
 	if err != nil {
-		logger.Warnf("post update: error: %s", err.Error())
+		a.log.Errorf("error: post update, cannot get post by id: %s", err.Error())
 		server.ErrorJSON(w, r, http.StatusBadRequest, err)
 		return
 	}
 	if u.ID != originalPost.UserID {
-		logger.Warnf("post update: unauthorized access error: %s", err.Error())
 		server.ErrorJSON(w, r, http.StatusUnauthorized, err)
 		return
 	}
-	updPost := post.UpdatePost{ID: input.ID}
+	updPost := domain.UpdatePost{ID: input.ID}
 	if input.ReadingTime != nil {
 		updPost.ReadingTime = *input.ReadingTime
 	} else {
@@ -213,9 +211,9 @@ func (a *API) UpdatePost(w http.ResponseWriter, r *http.Request) {
 	}
 	if input.Publish != nil {
 		if *input.Publish {
-			updPost.Status = post.PostStatusPublished
+			updPost.Status = domain.PostStatusPublished
 		} else {
-			updPost.Status = post.PostStatusDraft
+			updPost.Status = domain.PostStatusDraft
 		}
 	} else {
 		updPost.Status = originalPost.Status
@@ -223,7 +221,7 @@ func (a *API) UpdatePost(w http.ResponseWriter, r *http.Request) {
 
 	err = a.posts.UpdatePost(r.Context(), updPost)
 	if err != nil {
-		logger.Warnf("post update: error: %s", err.Error())
+		a.log.Errorf("error: post update: %s", err.Error())
 		server.ErrorJSON(w, r, http.StatusInternalServerError, err)
 		return
 	}
@@ -238,30 +236,29 @@ func (a *API) DeletePost(w http.ResponseWriter, r *http.Request) {
 	}
 	u := auth.FromContext(r.Context())
 	originalPost, err := a.posts.GetPostByID(r.Context(), int(id))
-	if err == post.ErrNotFound {
+	if err == service.ErrNotFound {
 		server.ErrorJSON(w, r, http.StatusNotFound, err)
 		return
 	}
 	if err != nil {
-		logger.Warnf("post delete: error: %s", err.Error())
+		a.log.Errorf("error: post delete, cannot get post by id: %s", err.Error())
 		server.ErrorJSON(w, r, http.StatusInternalServerError, err)
 		return
 	}
 	if u.ID != originalPost.UserID {
-		logger.Warnf("post delete: unauthorized access error: %s", err.Error())
 		server.ErrorJSON(w, r, http.StatusUnauthorized, err)
 		return
 	}
-	err = a.posts.DeletePost(r.Context(), post.DeletePost{ID: int(id)})
+	err = a.posts.DeletePost(r.Context(), domain.DeletePost{ID: int(id)})
 	if err != nil {
-		logger.Warnf("post delete: error: %s", err.Error())
+		a.log.Errorf("error: post delete: %s", err.Error())
 		server.ErrorJSON(w, r, http.StatusInternalServerError, err)
 		return
 	}
 	server.ResponseJSON(w, r, "ok")
 }
 
-func getTagIDs(tags []*tag.Tag) []int {
+func getTagIDs(tags []*domain.Tag) []int {
 	out := make([]int, 0)
 	for _, t := range tags {
 		out = append(out, t.ID)

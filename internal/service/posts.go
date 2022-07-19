@@ -1,33 +1,35 @@
-package post
+package service
 
 import (
 	"context"
 	"database/sql"
 	"github.com/pkg/errors"
+	"github.com/scraletteykt/my-blog/internal/domain"
 	"github.com/scraletteykt/my-blog/internal/repository"
-	"github.com/scraletteykt/my-blog/internal/tag"
 	"github.com/scraletteykt/my-blog/pkg/auth"
-	"github.com/scraletteykt/my-blog/pkg/storage"
+	"github.com/scraletteykt/my-blog/pkg/logger"
 	"time"
 )
 
 var ErrNotFound = errors.New("not found rows in result set")
 
-type Posts struct {
-	postsRepo     repository.Posts
-	tagsRepo      repository.Tags
-	postsTagsRepo repository.PostsTags
+type PostsService struct {
+	postsRepo     repository.PostsRepo
+	tagsRepo      repository.TagsRepo
+	postsTagsRepo repository.PostsTagsRepo
+	log           logger.Logger
 }
 
-func New(postsRepo repository.Posts, tagsRepo repository.Tags, postsTagsRepo repository.PostsTags) *Posts {
-	return &Posts{
+func NewPostsService(postsRepo repository.PostsRepo, tagsRepo repository.TagsRepo, postsTagsRepo repository.PostsTagsRepo, log logger.Logger) *PostsService {
+	return &PostsService{
 		postsRepo:     postsRepo,
 		tagsRepo:      tagsRepo,
 		postsTagsRepo: postsTagsRepo,
+		log:           log,
 	}
 }
 
-func (p *Posts) GetPostByID(ctx context.Context, id int) (*Post, error) {
+func (p *PostsService) GetPostByID(ctx context.Context, id int) (*domain.Post, error) {
 	u := auth.FromContext(ctx)
 	posts, err := p.getPosts(ctx, repository.PostCriteria{
 		ID:     id,
@@ -41,35 +43,35 @@ func (p *Posts) GetPostByID(ctx context.Context, id int) (*Post, error) {
 		return nil, err
 	}
 	post := posts[0]
-	if post.UserID != u.ID && post.Status != PostStatusPublished {
+	if post.UserID != u.ID && post.Status != domain.PostStatusPublished {
 		return nil, ErrNotFound
 	}
 	return posts[0], nil
 }
 
-func (p *Posts) GetPosts(ctx context.Context, limit, offset uint64) ([]*Post, error) {
+func (p *PostsService) GetPosts(ctx context.Context, limit, offset uint64) ([]*domain.Post, error) {
 	return p.getPosts(ctx, repository.PostCriteria{
 		ID:     0,
 		UserID: 0,
-		Status: PostStatusPublished,
+		Status: domain.PostStatusPublished,
 		TagID:  0,
 		Limit:  limit,
 		Offset: offset,
 	})
 }
 
-func (p *Posts) GetPostsByTag(ctx context.Context, tagID int, limit, offset uint64) ([]*Post, error) {
+func (p *PostsService) GetPostsByTag(ctx context.Context, tagID int, limit, offset uint64) ([]*domain.Post, error) {
 	return p.getPosts(ctx, repository.PostCriteria{
 		ID:     0,
 		UserID: 0,
-		Status: PostStatusPublished,
+		Status: domain.PostStatusPublished,
 		TagID:  tagID,
 		Limit:  limit,
 		Offset: offset,
 	})
 }
 
-func (p *Posts) GetPostsByUser(ctx context.Context, userID int, limit, offset uint64) ([]*Post, error) {
+func (p *PostsService) GetPostsByUser(ctx context.Context, userID int, limit, offset uint64) ([]*domain.Post, error) {
 	return p.getPosts(ctx, repository.PostCriteria{
 		ID:     0,
 		UserID: userID,
@@ -80,11 +82,11 @@ func (p *Posts) GetPostsByUser(ctx context.Context, userID int, limit, offset ui
 	})
 }
 
-func (p *Posts) CreatePost(ctx context.Context, createPost CreatePost) error {
+func (p *PostsService) CreatePost(ctx context.Context, createPost domain.CreatePost) error {
 	postID, err := p.postsRepo.CreatePost(ctx, repository.CreatePost{
 		UserID:      createPost.UserID,
 		ReadingTime: createPost.ReadingTime,
-		Status:      PostStatusDraft,
+		Status:      domain.PostStatusDraft,
 		Title:       createPost.Title,
 		Subtitle:    createPost.Subtitle,
 		ImageURL:    createPost.ImageURL,
@@ -105,9 +107,9 @@ func (p *Posts) CreatePost(ctx context.Context, createPost CreatePost) error {
 	return nil
 }
 
-func (p *Posts) UpdatePost(ctx context.Context, updatePost UpdatePost) error {
+func (p *PostsService) UpdatePost(ctx context.Context, updatePost domain.UpdatePost) error {
 	var publishedAt sql.NullTime
-	if updatePost.Status == PostStatusPublished {
+	if updatePost.Status == domain.PostStatusPublished {
 		publishedAt.Time = time.Now()
 		publishedAt.Valid = true
 	} else {
@@ -136,10 +138,10 @@ func (p *Posts) UpdatePost(ctx context.Context, updatePost UpdatePost) error {
 	return nil
 }
 
-func (p *Posts) DeletePost(ctx context.Context, deletePost DeletePost) error {
+func (p *PostsService) DeletePost(ctx context.Context, deletePost domain.DeletePost) error {
 	err := p.postsRepo.DeletePost(ctx, repository.DeletePost{
 		ID:        deletePost.ID,
-		Status:    PostStatusDeleted,
+		Status:    domain.PostStatusDeleted,
 		DeletedAt: time.Now(),
 	})
 	if err != nil {
@@ -148,19 +150,22 @@ func (p *Posts) DeletePost(ctx context.Context, deletePost DeletePost) error {
 	return nil
 }
 
-func (p *Posts) getPosts(ctx context.Context, criteria repository.PostCriteria) ([]*Post, error) {
+func (p *PostsService) getPosts(ctx context.Context, criteria repository.PostCriteria) ([]*domain.Post, error) {
 	dbPosts, err := p.postsRepo.GetPostsByCriteria(ctx, criteria)
-	if err == storage.ErrNotFound {
-		return nil, ErrNotFound
-	}
 	if err != nil {
-		return nil, err
+		switch err {
+		case repository.ErrNotFound:
+			return nil, ErrNotFound
+		default:
+			return nil, err
+		}
 	}
+
 	if dbPosts == nil || len(dbPosts) == 0 {
 		return nil, ErrNotFound
 	}
 
-	posts := make([]*Post, 0)
+	posts := make([]*domain.Post, 0)
 
 	for _, dbPost := range dbPosts {
 		var (
@@ -173,8 +178,8 @@ func (p *Posts) getPosts(ctx context.Context, criteria repository.PostCriteria) 
 		if dbPost.DeletedAt.Valid {
 			deletedAt = dbPost.DeletedAt.Time
 		}
-		tags := make([]*tag.Tag, 0)
-		pst := &Post{
+		tags := make([]*domain.Tag, 0)
+		pst := &domain.Post{
 			ID:          dbPost.ID,
 			UserID:      dbPost.UserID,
 			ReadingTime: dbPost.ReadingTime,
@@ -191,7 +196,7 @@ func (p *Posts) getPosts(ctx context.Context, criteria repository.PostCriteria) 
 			Tags:        tags,
 		}
 		for _, dbTag := range dbPost.Tags {
-			t := &tag.Tag{
+			t := &domain.Tag{
 				ID:   dbTag.ID,
 				Name: dbTag.Name,
 				Slug: dbTag.Slug,

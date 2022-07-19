@@ -1,22 +1,24 @@
 package config
 
 import (
-	"fmt"
 	"github.com/joho/godotenv"
+	"github.com/scraletteykt/my-blog/pkg/logger"
 	"github.com/spf13/viper"
-	"log"
 	"os"
+	"time"
 )
 
 const (
-	defaultHTTPPort = "8080"
+	defaultHTTPPort               = "8000"
+	defaultHTTPRWTimeout          = 10 * time.Second
+	defaultHTTPMaxHeaderMegabytes = 1
 )
 
 type (
 	Config struct {
+		Auth     AuthConfig
 		HTTP     HTTPConfig
 		Postgres PostgresConfig
-		Auth     AuthConfig
 	}
 
 	AuthConfig struct {
@@ -24,7 +26,10 @@ type (
 	}
 
 	HTTPConfig struct {
-		Port string `mapstructure:"port"`
+		Port               string        `mapstructure:"port"`
+		ReadTimeout        time.Duration `mapstructure:"readTimeout"`
+		WriteTimeout       time.Duration `mapstructure:"writeTimeout"`
+		MaxHeaderMegabytes int           `mapstructure:"maxHeaderBytes"`
 	}
 
 	PostgresConfig struct {
@@ -37,10 +42,10 @@ type (
 	}
 )
 
-func InitConfig() (*Config, error) {
+func NewConfig(log logger.Logger) (*Config, error) {
 	populateDefaults()
 
-	if err := parseConfig(); err != nil {
+	if err := parseConfig(log); err != nil {
 		return nil, err
 	}
 
@@ -49,8 +54,8 @@ func InitConfig() (*Config, error) {
 		return nil, err
 	}
 
-	cfg.Postgres.Password = os.Getenv("DB_PASSWORD")
 	cfg.Auth.Secret = os.Getenv("SECRET_KEY")
+	cfg.Postgres.Password = os.Getenv("DB_PASSWORD")
 	return &cfg, nil
 }
 
@@ -64,11 +69,11 @@ func unmarshal(cfg *Config) error {
 	return nil
 }
 
-func parseConfig() error {
+func parseConfig(log logger.Logger) error {
 	viper.AddConfigPath(".")
 	viper.SetConfigFile("configs/config.yml")
 	if err := viper.ReadInConfig(); err != nil {
-		fmt.Println(err)
+		log.Fatalf("error reading config file: %s", err.Error())
 		return err
 	}
 	if err := godotenv.Load(); err != nil {
@@ -80,4 +85,7 @@ func parseConfig() error {
 
 func populateDefaults() {
 	viper.SetDefault("http.port", defaultHTTPPort)
+	viper.SetDefault("http.maxHeaderBytes", defaultHTTPMaxHeaderMegabytes)
+	viper.SetDefault("http.readTimeout", defaultHTTPRWTimeout)
+	viper.SetDefault("http.writeTimeout", defaultHTTPRWTimeout)
 }
